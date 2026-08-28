@@ -90,13 +90,16 @@ shows "approval needed," use the menu shortcut to jump straight to Login Items s
 
 ```
 Sources/macsync/
-├── MacsyncApp.swift         @main, MenuBarExtra
-├── MenuContentView.swift    menu dropdown UI
-├── AppState.swift            central state, launch-at-login (SMAppService), lifecycle
-├── Models.swift              Codable event envelope + payloads + day archive
-├── Collectors/               AppWindow / InputMetrics / Browser / Hardware / Idle / Location
-├── Storage/DataStore.swift   append-only JSONL buffer + stats
-├── Sync/                     SyncScheduler (23:59 + watchdog) / iCloudSync (destinations)
+├── MacsyncApp.swift            @main, MenuBarExtra + Dashboard window scene
+├── MenuContentView.swift       polished hero panel dropdown UI
+├── AppState.swift              central state, launch-at-login (SMAppService), lifecycle
+├── Models.swift                Codable event envelope + payloads + day archive
+├── Dashboard/
+│   ├── TodayStats.swift        live today-aggregation (keys, focus, apps, battery…)
+│   └── DashboardView.swift     Swift Charts dashboard window + AppTheme + ring
+├── Collectors/                 AppWindow / InputMetrics / Browser / Hardware / Idle / Location
+├── Storage/DataStore.swift     append-only JSONL buffer + stats
+├── Sync/                       SyncScheduler (23:59 + watchdog) / iCloudSync (destinations)
 └── Permissions/PermissionsManager.swift
 ```
 
