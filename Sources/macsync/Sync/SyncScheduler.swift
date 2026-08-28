@@ -52,7 +52,7 @@ final class SyncScheduler {
         }
         RunLoop.main.add(timer, forMode: .common)
         dailyTimer = timer
-        NSLog("OmniTracker: next daily sync scheduled for \(next) (in \(Int(interval))s)")
+        NSLog("macsync: next daily sync scheduled for \(next) (in \(Int(interval))s)")
     }
 
     static func nextSyncDate(from now: Date) -> Date {
@@ -66,10 +66,10 @@ final class SyncScheduler {
     }
 
     private func fireDailySync() {
-        let today = OmniFormat.dayString()
+        let today = SyncFormat.dayString()
         // Sync *yesterday* (complete day) plus any earlier unsynced days.
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
-        syncEngine.syncUnsyncedDays(upToAndIncluding: OmniFormat.dayString(for: yesterday))
+        syncEngine.syncUnsyncedDays(upToAndIncluding: SyncFormat.dayString(for: yesterday))
         lastSyncDay = today
         onSyncFired?()
         scheduleDailyTimer()
@@ -78,7 +78,7 @@ final class SyncScheduler {
     // MARK: - Background watchdog (catches sleep/missed runs)
 
     private func installBackgroundActivity() {
-        let activity = NSBackgroundActivityScheduler(identifier: "com.omnitracker.sync")
+        let activity = NSBackgroundActivityScheduler(identifier: "com.macsync.sync")
         activity.repeats = true
         activity.interval = 3600          // check hourly
         activity.tolerance = 1800
@@ -89,10 +89,10 @@ final class SyncScheduler {
                 return
             }
             let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
-            let yesterdayStr = OmniFormat.dayString(for: yesterday)
+            let yesterdayStr = SyncFormat.dayString(for: yesterday)
             let unsynced = DataStore.shared.bufferedDays().filter { $0 <= yesterdayStr }
             if !unsynced.isEmpty {
-                NSLog("OmniTracker: watchdog syncing \(unsynced.count) missed day(s): \(unsynced)")
+                NSLog("macsync: watchdog syncing \(unsynced.count) missed day(s): \(unsynced)")
                 self.syncEngine.syncUnsyncedDays(upToAndIncluding: yesterdayStr)
                 self.onSyncFired?()
             }
@@ -105,7 +105,7 @@ final class SyncScheduler {
 
     /// Compiles and uploads *today's* logs so far (non-destructive — buffer stays).
     func syncNow() {
-        syncEngine.syncDay(OmniFormat.dayString(), archiveAfterSuccess: false)
+        syncEngine.syncDay(SyncFormat.dayString(), archiveAfterSuccess: false)
         onSyncFired?()
     }
 }

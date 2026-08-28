@@ -174,7 +174,7 @@ struct DaySummary: Codable {
 
 // MARK: - Shared formatting
 
-enum OmniFormat {
+enum SyncFormat {
     static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .gregorian)

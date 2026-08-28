@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<!--
-		OmniTracker is intentionally NOT sandboxed.
+		macsync is intentionally NOT sandboxed.
 		Global CGEvent taps (input metrics) and AppleScript browser queries
 		require running outside the App Sandbox. Do not add
 		com.apple.security.app-sandbox here.

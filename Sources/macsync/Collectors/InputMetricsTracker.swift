@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 import CoreGraphics
 
 /// Global input METADATA tracker via CGEvent tap.
@@ -16,7 +15,7 @@ final class InputMetricsTracker {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var flushTimer: DispatchSourceTimer?
-    private let queue = DispatchQueue(label: "com.omnitracker.inputmetrics", qos: .userInteractive)
+    private let queue = DispatchQueue(label: "com.macsync.inputmetrics", qos: .userInteractive)
 
     private let lock = NSLock()
     private var bucketStart = Date()
@@ -29,14 +28,12 @@ final class InputMetricsTracker {
     private var lastMouseLocation: CGPoint?
 
     private(set) var tapEnabled = false
-    private var tapFireCount = 0   // diagnostic: raw callback invocations
-    private var tapTypeCounts: [String: Int] = [:]  // diagnostic: CGEventType rawValue -> count
 
     func start() {
         stop()
         // Restore any un-flushed counters from a previous run.
         if let snap = store.loadInputSnapshot(),
-           OmniFormat.dayString(for: snap.bucketStart) == OmniFormat.dayString() {
+           SyncFormat.dayString(for: snap.bucketStart) == SyncFormat.dayString() {
             bucketStart = snap.bucketStart
             keystrokes = snap.keystrokes
             clicks = snap.clicks
@@ -53,24 +50,6 @@ final class InputMetricsTracker {
             DispatchQueue.main.async { self.createTap() }
         }
         startFlushTimer()
-        // One-shot startup diagnostic into the buffer so we can see what happened.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
-            guard let self else { return }
-            self.lock.lock()
-            let fires = self.tapFireCount
-            let types = self.tapTypeCounts
-                .sorted { $0.key < $1.key }
-                .map { "\($0.key):\($0.value)" }
-                .joined(separator: ",")
-            self.lock.unlock()
-            let payload = SyncResultPayload(
-                date: OmniFormat.dayString(),
-                destination: "tap-diagnostic",
-                filePath: "trusted=\(AXIsProcessTrusted()) tapEnabled=\(self.tapEnabled) fires=\(fires) types=[\(types)]",
-                eventCount: 0, success: self.tapEnabled, errorMessage: nil
-            )
-            self.store.append(TrackerEvent(ts: Date(), kind: .syncResult, payload: .syncResult(payload)))
-        }
     }
 
     func stop() {
@@ -108,7 +87,6 @@ final class InputMetricsTracker {
                 }
                 return Unmanaged.passRetained(event)
             }
-            tracker.noteTapFired(type: type)
 
             // METADATA ONLY: type + pointer location. Never keycodes/characters.
             switch type {
@@ -142,11 +120,9 @@ final class InputMetricsTracker {
                 CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
                 CGEvent.tapEnable(tap: tap, enable: true)
                 tapEnabled = true
-                NSLog("OmniTracker: input event tap active (metadata-only)")
             }
         } else {
             tapEnabled = false
-            NSLog("OmniTracker: FAILED to create event tap - grant Accessibility permission")
             scheduleTapRetry()
         }
     }
@@ -197,14 +173,6 @@ final class InputMetricsTracker {
         scrolls = state.scrolls
         cursorDistance = state.cursorDistance
         lastMouseLocation = state.lastMouseLocation
-        lock.unlock()
-    }
-
-    /// Diagnostic: counts every tap callback invocation, by raw event type.
-    private func noteTapFired(type: CGEventType) {
-        lock.lock()
-        tapFireCount += 1
-        tapTypeCounts[String(type.rawValue), default: 0] += 1
         lock.unlock()
     }
 

@@ -21,7 +21,7 @@ struct MenuContentView: View {
     var body: some View {
         // MARK: Status section
         Group {
-            Text(appState.isTracking ? "OmniTracker — Tracking" : "OmniTracker — Paused")
+            Text(appState.isTracking ? "macsync — Tracking" : "macsync — Paused")
                 .font(.headline)
             Text("Events today: \(appState.todayEventCount)")
             Text(syncStatusText)
@@ -77,7 +77,7 @@ struct MenuContentView: View {
 
         Divider()
 
-        Button("Quit OmniTracker") {
+        Button("Quit macsync") {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q")

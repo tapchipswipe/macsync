@@ -5,11 +5,11 @@ import Foundation
 ///
 /// Destination order:
 ///   1. iCloud Drive ubiquity container (FileManager.url(forUbiquityContainerIdentifier:))
-///   2. ~/Library/Mobile Documents/com~apple~CloudDocs/OmniTracker/ (works even without ubiquity token)
-///   3. ~/Library/Application Support/OmniTracker/Exports/
+///   2. ~/Library/Mobile Documents/com~apple~CloudDocs/macsync/ (works even without ubiquity token)
+///   3. ~/Library/Application Support/macsync/Exports/
 final class iCloudSync {
     private let store = DataStore.shared
-    private let syncQueue = DispatchQueue(label: "com.omnitracker.icloudsync", qos: .utility)
+    private let syncQueue = DispatchQueue(label: "com.macsync.icloudsync", qos: .utility)
     private let fm = FileManager.default
 
     /// Syncs every buffered day up to and including `dayString`.
@@ -49,14 +49,14 @@ final class iCloudSync {
         let archive = DayArchive(
             date: dayString,
             generatedAt: Date(),
-            generator: "OmniTracker 0.1.0",
+            generator: "macsync 0.1.0",
             eventCount: events.count,
             eventsByKind: Dictionary(grouping: events, by: { $0.kind.rawValue }).mapValues(\.count),
             summary: Self.buildSummary(events: events),
             events: events
         )
 
-        guard let jsonData = try? OmniFormat.prettyJSONEncoder.encode(archive) else {
+        guard let jsonData = try? SyncFormat.prettyJSONEncoder.encode(archive) else {
             let payload = SyncResultPayload(
                 date: dayString, destination: "None", filePath: nil,
                 eventCount: events.count, success: false, errorMessage: "JSON encoding failed"
@@ -64,7 +64,7 @@ final class iCloudSync {
             return SyncOutcome(payload: payload, detail: "\(dayString): encoding failed")
         }
 
-        let filename = "OmniTracker_\(dayString).json"
+        let filename = "macsync_\(dayString).json"
 
         if let destination = resolveDestination() {
             do {
@@ -108,7 +108,7 @@ final class iCloudSync {
         if let ubiquity = fm.url(forUbiquityContainerIdentifier: nil) {
             return Destination(
                 name: "iCloud",
-                dir: ubiquity.appendingPathComponent("Documents/OmniTracker", isDirectory: true)
+                dir: ubiquity.appendingPathComponent("Documents/macsync", isDirectory: true)
             )
         }
         // 2. iCloud Drive root via well-known path (no entitlement needed).
@@ -118,7 +118,7 @@ final class iCloudSync {
         if fm.fileExists(atPath: cloudDocs.path, isDirectory: &isDir), isDir.boolValue {
             return Destination(
                 name: "iCloudDrive",
-                dir: cloudDocs.appendingPathComponent("OmniTracker", isDirectory: true)
+                dir: cloudDocs.appendingPathComponent("macsync", isDirectory: true)
             )
         }
         // 3. Local exports folder (never fails).

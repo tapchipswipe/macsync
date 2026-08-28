@@ -32,13 +32,16 @@ final class PermissionsManager {
 
     // MARK: - Onboarding
 
-    /// Runs on first launch (and from the menu). Prompts only for what is missing.
+    /// Runs once on first launch. After the user has been shown the onboarding
+    /// flow, subsequent launches stay silent (permissions are re-checked live
+    /// in the menu, and can be re-requested manually via "Request / Review Permissions…").
     func runOnboardingIfNeeded(locationTracker: LocationTracker) {
-        let onboarded = UserDefaults.standard.bool(forKey: "omnitracker.onboarded")
-        if !onboarded || !allCriticalGranted {
+        let onboarded = UserDefaults.standard.bool(forKey: "macsync.onboarded")
+        if !onboarded {
+            // First launch only: trigger the system prompts for whatever is missing.
             requestAccessibility()
             requestScreenRecording()
-            UserDefaults.standard.set(true, forKey: "omnitracker.onboarded")
+            UserDefaults.standard.set(true, forKey: "macsync.onboarded")
             if !allCriticalGranted {
                 showOnboardingAlert()
             }
@@ -76,9 +79,9 @@ final class PermissionsManager {
 
     private func showOnboardingAlert() {
         let alert = NSAlert()
-        alert.messageText = "OmniTracker needs permissions"
+        alert.messageText = "macsync needs permissions"
         alert.informativeText = """
-        To build your lifelog, OmniTracker needs:
+        To build your lifelog, macsync needs:
 
         • Accessibility — counts keystrokes/clicks (metadata only, never what you type)
         • Screen Recording — reads window titles

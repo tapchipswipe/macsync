@@ -1,7 +1,7 @@
 import Foundation
 
 /// Append-only JSONL buffer rooted at
-/// ~/Library/Application Support/OmniTracker/
+/// ~/Library/Application Support/macsync/
 ///
 /// Layout:
 ///   buffer/events-YYYY-MM-DD.jsonl   one TrackerEvent per line (crash-safe append)
@@ -16,7 +16,7 @@ final class DataStore {
     let stateDir: URL
     let exportsDir: URL
 
-    private let writeQueue = DispatchQueue(label: "com.omnitracker.datastore", qos: .utility)
+    private let writeQueue = DispatchQueue(label: "com.macsync.datastore", qos: .utility)
     private let lock = NSLock()
 
     /// Counters read on main, written under lock.
@@ -29,7 +29,7 @@ final class DataStore {
 
     private init() {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        root = appSupport.appendingPathComponent("OmniTracker", isDirectory: true)
+        root = appSupport.appendingPathComponent("macsync", isDirectory: true)
         bufferDir = root.appendingPathComponent("buffer", isDirectory: true)
         stateDir = root.appendingPathComponent("state", isDirectory: true)
         exportsDir = root.appendingPathComponent("Exports", isDirectory: true)
@@ -52,9 +52,9 @@ final class DataStore {
 
     func append(_ event: TrackerEvent) {
         writeQueue.async { [self] in
-            let day = OmniFormat.dayString(for: event.ts)
+            let day = SyncFormat.dayString(for: event.ts)
             let file = bufferFile(for: day)
-            guard let data = try? OmniFormat.jsonEncoder.encode(event) else { return }
+            guard let data = try? SyncFormat.jsonEncoder.encode(event) else { return }
             var line = data
             line.append(0x0A) // newline
             if FileManager.default.fileExists(atPath: file.path) {
@@ -64,14 +64,14 @@ final class DataStore {
                         try handle.seekToEnd()
                         try handle.write(contentsOf: line)
                     } catch {
-                        NSLog("OmniTracker DataStore append error: \(error)")
+                        NSLog("macsync DataStore append error: \(error)")
                     }
                 }
             } else {
                 try? line.write(to: file, options: .atomic)
             }
             lock.lock()
-            if day == OmniFormat.dayString() { todayEventCount += 1 }
+            if day == SyncFormat.dayString() { todayEventCount += 1 }
             lock.unlock()
             DispatchQueue.main.async { [weak self] in self?.onStatsChanged?() }
         }
@@ -84,7 +84,7 @@ final class DataStore {
         guard let data = try? Data(contentsOf: file) else { return [] }
         var events: [TrackerEvent] = []
         data.split(separator: 0x0A).forEach { slice in
-            if let ev = try? OmniFormat.jsonDecoder.decode(TrackerEvent.self, from: Data(slice)) {
+            if let ev = try? SyncFormat.jsonDecoder.decode(TrackerEvent.self, from: Data(slice)) {
                 events.append(ev)
             }
         }
@@ -120,8 +120,8 @@ final class DataStore {
 
     private func loadState() {
         guard let data = try? Data(contentsOf: stateFile),
-              let state = try? OmniFormat.jsonDecoder.decode(PersistedState.self, from: data) else { return }
-        todayEventCount = state.eventCounts[OmniFormat.dayString()] ?? 0
+              let state = try? SyncFormat.jsonDecoder.decode(PersistedState.self, from: data) else { return }
+        todayEventCount = state.eventCounts[SyncFormat.dayString()] ?? 0
         lastSyncDate = state.lastSyncDate
         lastSyncSuccess = state.lastSyncSuccess
         lastSyncDetail = state.lastSyncDetail
@@ -141,13 +141,13 @@ final class DataStore {
         writeQueue.async { [self] in
             lock.lock()
             let state = PersistedState(
-                eventCounts: [OmniFormat.dayString(): todayEventCount],
+                eventCounts: [SyncFormat.dayString(): todayEventCount],
                 lastSyncDate: lastSyncDate,
                 lastSyncSuccess: lastSyncSuccess,
                 lastSyncDetail: lastSyncDetail
             )
             lock.unlock()
-            if let data = try? OmniFormat.prettyJSONEncoder.encode(state) {
+            if let data = try? SyncFormat.prettyJSONEncoder.encode(state) {
                 try? data.write(to: stateFile, options: .atomic)
             }
         }
@@ -166,7 +166,7 @@ final class DataStore {
 
     func saveInputSnapshot(_ snapshot: InputSnapshot) {
         writeQueue.async { [self] in
-            if let data = try? OmniFormat.jsonEncoder.encode(snapshot) {
+            if let data = try? SyncFormat.jsonEncoder.encode(snapshot) {
                 try? data.write(to: inputStateFile, options: .atomic)
             }
         }
@@ -174,6 +174,6 @@ final class DataStore {
 
     func loadInputSnapshot() -> InputSnapshot? {
         guard let data = try? Data(contentsOf: inputStateFile) else { return nil }
-        return try? OmniFormat.jsonDecoder.decode(InputSnapshot.self, from: data)
+        return try? SyncFormat.jsonDecoder.decode(InputSnapshot.self, from: data)
     }
 }

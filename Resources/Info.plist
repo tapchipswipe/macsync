@@ -5,13 +5,13 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>OmniTracker</string>
+	<string>macsync</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.omnitracker.app</string>
+	<string>com.macsync.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>OmniTracker</string>
+	<string>macsync</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -25,10 +25,10 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>OmniTracker uses AppleScript to read the active tab URL and title from Safari and Chrome for your personal lifelog. No page content is ever collected.</string>
+	<string>macsync uses AppleScript to read the active tab URL and title from Safari and Chrome for your personal lifelog. No page content is ever collected.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>OmniTracker records periodic location pings so your daily lifelog includes where you were working.</string>
+	<string>macsync records periodic location pings so your daily lifelog includes where you were working.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>OmniTracker records periodic location pings so your daily lifelog includes where you were working.</string>
+	<string>macsync records periodic location pings so your daily lifelog includes where you were working.</string>
 </dict>
 </plist>

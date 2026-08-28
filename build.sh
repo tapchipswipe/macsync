@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# OmniTracker build script.
+# macsync build script.
 #
 # Strategy:
 #   1. If a full Xcode is installed (xcodebuild usable) -> generate project via
@@ -10,20 +10,20 @@
 #      single pure-Swift target with no storyboards or asset catalogs.)
 #
 # Output:
-#   build/OmniTracker.app   (ad-hoc signed)
-#   build/OmniTracker.dmg   (compressed, mountable)
+#   build/macsync.app   (ad-hoc signed)
+#   build/macsync.dmg   (compressed, mountable)
 #
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$PROJECT_DIR/build"
-APP_NAME="OmniTracker"
+APP_NAME="macsync"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 DMG_PATH="$BUILD_DIR/$APP_NAME.dmg"
-BUNDLE_ID="com.omnitracker.app"
+BUNDLE_ID="com.macsync.app"
 MIN_MACOS="14.0"
 
-echo "==> OmniTracker build"
+echo "==> macsync build"
 echo "    Project: $PROJECT_DIR"
 
 rm -rf "$BUILD_DIR"
@@ -84,15 +84,23 @@ if [ ! -d "$APP_BUNDLE" ]; then
     mkdir -p "$APP_BUNDLE/Contents/Resources"
     cp "$BUILD_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
     cp "$PROJECT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
-    cp "$PROJECT_DIR/Resources/OmniTracker.entitlements" "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
+    cp "$PROJECT_DIR/Resources/macsync.entitlements" "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
 fi
 
 # ---------------------------------------------------------------------------
-# Ad-hoc code sign (stable TCC identity across rebuilds)
+# Code sign. Prefer the stable self-signed "macsync-dev" identity so that
+# macOS TCC permission grants (Accessibility, Screen Recording) survive
+# rebuilds — ad-hoc signing produces a new cdhash each build and breaks them.
 # ---------------------------------------------------------------------------
-echo "==> Ad-hoc signing"
-codesign --force --deep --sign - \
-    --entitlements "$PROJECT_DIR/Resources/OmniTracker.entitlements" \
+SIGN_IDENTITY="-"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "macsync-dev"; then
+    SIGN_IDENTITY="macsync-dev"
+    echo "==> Signing with stable identity: macsync-dev"
+else
+    echo "==> Signing ad-hoc (no macsync-dev identity found)"
+fi
+codesign --force --deep --sign "$SIGN_IDENTITY" \
+    --entitlements "$PROJECT_DIR/Resources/macsync.entitlements" \
     --identifier "$BUNDLE_ID" \
     "$APP_BUNDLE"
 codesign --verify --verbose=1 "$APP_BUNDLE" >/dev/null 2>&1 && echo "    signature OK"

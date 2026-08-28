@@ -157,7 +157,7 @@ final class AppState: ObservableObject {
             do {
                 try SMAppService.mainApp.register()
             } catch {
-                NSLog("OmniTracker: SMAppService register failed: \(error.localizedDescription)")
+                NSLog("macsync: SMAppService register failed: \(error.localizedDescription)")
             }
         } else {
             // unregister() is async throws on the modern SDK.
@@ -165,7 +165,7 @@ final class AppState: ObservableObject {
                 do {
                     try await SMAppService.mainApp.unregister()
                 } catch {
-                    NSLog("OmniTracker: SMAppService unregister failed: \(error.localizedDescription)")
+                    NSLog("macsync: SMAppService unregister failed: \(error.localizedDescription)")
                 }
                 await MainActor.run { self.refreshLaunchAtLoginStatus() }
             }

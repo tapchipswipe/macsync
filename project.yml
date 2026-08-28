@@ -1,23 +1,23 @@
 # XcodeGen spec — optional. Only needed if you install full Xcode and want
 # `xcodebuild` to take over from the swiftc fallback in build.sh.
 # Usage: brew install xcodegen && xcodegen generate
-name: OmniTracker
+name: macsync
 options:
-  bundleIdPrefix: com.omnitracker
+  bundleIdPrefix: com.macsync
   deploymentTarget:
     macOS: "14.0"
 targets:
-  OmniTracker:
+  macsync:
     type: application
     platform: macOS
     sources:
-      - path: Sources/OmniTracker
+      - path: Sources/macsync
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.omnitracker.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.macsync.app
         INFOPLIST_FILE: Resources/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Resources/OmniTracker.entitlements
-        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_ENTITLEMENTS: Resources/macsync.entitlements
+        CODE_SIGN_IDENTITY: "macsync-dev"
         CODE_SIGNING_REQUIRED: NO
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "6.0"
