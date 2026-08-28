@@ -10,6 +10,7 @@ func expect(_ cond: Bool, _ msg: String) {
 AggregatorTests.run()
 CryptoTests.run()
 CategoryTests.run()
+UpdateTests.run()
 
 print("\(checks - failures)/\(checks) checks passed")
 exit(failures == 0 ? 0 : 1)

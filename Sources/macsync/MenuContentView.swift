@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuContentView: View {
     @ObservedObject var appState: AppState
     @Environment(\.openWindow) private var openWindow
+    @ObservedObject private var updater = UpdateChecker.shared
 
     @AppStorage("macsync.nightPauseEnabled") private var nightPause = false
     @AppStorage("macsync.zipArchives") private var zipArchives = true
@@ -18,7 +19,10 @@ struct MenuContentView: View {
                     focusBars
                     Divider()
                     syncCard
-                    Divider()
+                    if updater.state == .available {
+                        updateCard
+                        Divider()
+                    }
                     permissionsCard
                     Divider()
                     settingsCard
@@ -195,6 +199,12 @@ struct MenuContentView: View {
                 .toggleStyle(.switch).controlSize(.mini).font(.system(size: 12))
             Toggle("Encrypt archives (AES-256)", isOn: $encryptArchives)
                 .toggleStyle(.switch).controlSize(.mini).font(.system(size: 12))
+            HStack {
+                Text(updateStatusText).font(.system(size: 11)).foregroundStyle(.secondary)
+                Spacer()
+                Button("Check") { updater.checkNow() }
+                    .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(AppTheme.accent)
+            }
             Toggle("Launch at Login", isOn: Binding(
                 get: { appState.launchAtLogin },
                 set: { appState.toggleLaunchAtLogin($0) }
@@ -224,6 +234,36 @@ struct MenuContentView: View {
             }
             .buttonStyle(.plain).font(.system(size: 12))
             .padding(.horizontal, 14).padding(.vertical, 8)
+        }
+    }
+
+    // MARK: - Update card
+    private var updateCard: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.down.circle.fill")
+                .foregroundStyle(AppTheme.accent)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(AppTheme.accent.opacity(0.15)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Update available").font(.system(size: 12, weight: .semibold))
+                Text("Version \(updater.latestVersion ?? "") is ready").font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Download") { updater.openDownloadPage() }
+                .buttonStyle(.borderedProminent).tint(AppTheme.accent).controlSize(.small)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+    }
+
+    private var updateStatusText: String {
+        switch updater.state {
+        case .checking: "Checking for updates…"
+        case .upToDate: "Up to date (v\(UpdateChecker.currentVersion()))"
+        case .available: "v\(updater.latestVersion ?? "?") available"
+        case .failed: "Update check failed"
+        case .idle: ""
         }
     }
 

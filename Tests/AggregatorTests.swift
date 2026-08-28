@@ -61,3 +61,15 @@ enum CategoryTests {
         expect(ActivityCategory.forURL("https://youtube.com/watch") == .media, "youtube → Media")
     }
 }
+
+
+enum UpdateTests {
+    static func run() {
+        expect(UpdateChecker.isNewer("v0.4.0", than: "0.3.1"), "newer minor (#update)")
+        expect(UpdateChecker.isNewer("0.3.2", than: "0.3.1"), "newer patch")
+        expect(UpdateChecker.isNewer("1.0.0", than: "0.9.9"), "newer major")
+        expect(!UpdateChecker.isNewer("v0.3.1", than: "0.3.1"), "same version not newer")
+        expect(!UpdateChecker.isNewer("0.3.0", than: "0.3.1"), "older not newer")
+        expect(UpdateChecker.isNewer("0.4", than: "0.3.1"), "shorter tag treated as 0.4.0")
+    }
+}

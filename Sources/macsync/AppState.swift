@@ -17,6 +17,7 @@ final class AppState: ObservableObject {
     private let idleTracker = IdleTracker()
     private let syncEngine = iCloudSync()
     private(set) lazy var scheduler = SyncScheduler(syncEngine: syncEngine)
+    let updater = UpdateChecker.shared
 
     @Published var isTracking = false
     @Published var stats = TodayStats.empty
@@ -63,6 +64,7 @@ final class AppState: ObservableObject {
         scheduler.onCatchUpSynced = { [weak self] count in
             Task { @MainActor in self?.missedDaysSynced = count }
         }
+        updater.start()
         startLocationPingTimer()
     }
 
