@@ -84,6 +84,7 @@ if [ ! -d "$APP_BUNDLE" ]; then
     mkdir -p "$APP_BUNDLE/Contents/Resources"
     cp "$BUILD_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
     cp "$PROJECT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+    cp "$PROJECT_DIR/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns" 2>/dev/null || true
     cp "$PROJECT_DIR/Resources/macsync.entitlements" "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
 fi
 
