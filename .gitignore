@@ -1,0 +1,21 @@
+# Build artifacts
+build/
+DerivedData/
+*.dmg
+
+# macOS
+.DS_Store
+
+# Xcode
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+xcuserdata/
+
+# SwiftPM
+.swiftpm/
+.build/
+
+# local build artifacts
+build-log.txt
+build.pid

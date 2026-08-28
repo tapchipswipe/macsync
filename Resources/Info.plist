@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>OmniTracker</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.omnitracker.app</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>OmniTracker</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>OmniTracker uses AppleScript to read the active tab URL and title from Safari and Chrome for your personal lifelog. No page content is ever collected.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>OmniTracker records periodic location pings so your daily lifelog includes where you were working.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>OmniTracker records periodic location pings so your daily lifelog includes where you were working.</string>
+</dict>
+</plist>
