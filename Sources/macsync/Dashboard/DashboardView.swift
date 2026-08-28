@@ -1,27 +1,63 @@
 import Charts
 import SwiftUI
 
+enum DashRange: String, CaseIterable, Identifiable {
+    case today = "Today", week = "Week", month = "Month"
+    var id: String { rawValue }
+    var daysBack: Int { self == .week ? 7 : 30 }
+}
+
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var range: DashRange = .today
     private static let timeFmt: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "EEEE, MMM d"; return f
     }()
 
     var body: some View {
-        let s = appState.stats
-        ScrollView {
+        VStack(spacing: 0) {
+            HStack {
+                Text("macsync")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                Spacer()
+                Picker("", selection: $range) {
+                    ForEach(DashRange.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 240)
+            }
+            .padding(.horizontal, 24).padding(.vertical, 12)
+            Divider()
+            ScrollView {
+                content
+                    .padding(24)
+            }
+        }
+        .frame(minWidth: 860, minHeight: 640)
+        .background(AppTheme.window.ignoresSafeArea())
+        .preferredColorScheme(.dark)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch range {
+        case .today:
+            let s = appState.stats
             VStack(spacing: 22) {
                 hero(s)
                 metricGrid(s)
                 if !s.activity.isEmpty { activityChart(s) }
+                if !s.categories.isEmpty { categoriesCard(s) }
                 if !s.apps.isEmpty { appsCard(s) }
+                insightsCard(s)
                 hardwareRow(s)
             }
-            .padding(24)
+        case .week:
+            periodSection(daysBack: 7, title: "LAST 7 DAYS")
+        case .month:
+            periodSection(daysBack: 30, title: "LAST 30 DAYS")
         }
-        .frame(minWidth: 720, minHeight: 600)
-        .background(AppTheme.window.ignoresSafeArea())
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Hero
@@ -77,7 +113,7 @@ struct DashboardView: View {
     }
 }
 
-// MARK: - DashboardView (visual sections)
+// MARK: - Sections
 extension DashboardView {
 
     static func distanceText(_ pts: Double) -> String {
@@ -114,11 +150,8 @@ extension DashboardView {
                     .foregroundStyle(AppTheme.accent.opacity(0.85))
                     .cornerRadius(2)
             }
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 8)) { _ in
-                    AxisValueLabel().foregroundStyle(.white.opacity(0.5))
-                }
-            }
+            .chartXAxis { AxisMarks(values: .automatic(desiredCount: 8)) { _ in
+                AxisValueLabel().foregroundStyle(.white.opacity(0.5)) } }
             .frame(height: 150)
         }
         .cardStyle()
@@ -134,8 +167,7 @@ extension DashboardView {
                         Text(String(a.name.prefix(20)))
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(.white.opacity(0.85))
-                            .frame(width: 150, alignment: .leading)
-                            .lineLimit(1)
+                            .frame(width: 150, alignment: .leading).lineLimit(1)
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
                                 Capsule().fill(.white.opacity(0.08))
@@ -153,6 +185,109 @@ extension DashboardView {
             }
         }
         .cardStyle()
+    }
+
+    // MARK: Categories (#3)
+    func categoriesCard(_ s: TodayStats) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("CONTEXT", "Where your time went, by category")
+            let total = max(s.categories.reduce(TimeInterval(0)) { $0 + $1.seconds }, 1)
+            VStack(spacing: 10) {
+                ForEach(s.categories.prefix(6)) { c in
+                    HStack(spacing: 12) {
+                        Label(c.category.label, systemImage: c.category.icon)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .frame(width: 150, alignment: .leading).lineLimit(1)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(.white.opacity(0.08))
+                                Capsule().fill(Color(hex: c.category.colorHex))
+                                    .frame(width: geo.size.width * CGFloat(c.seconds / total))
+                            }
+                        }
+                        .frame(height: 8)
+                        Text("\(Int(c.seconds / 60))m")
+                            .font(.system(size: 12, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.55))
+                            .frame(width: 46, alignment: .trailing)
+                    }
+                }
+            }
+        }
+        .cardStyle()
+    }
+
+    // MARK: Insights (#4 #5 #18)
+    func insightsCard(_ s: TodayStats) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("INSIGHTS", "What macsync recorded about your day")
+            VStack(alignment: .leading, spacing: 9) {
+                if let anomaly = s.anomaly {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12)).foregroundStyle(.orange)
+                        Text(anomaly).font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.orange.opacity(0.12)))
+                }
+                ForEach(Array(s.insights.enumerated()), id: \.offset) { _, line in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 11)).foregroundStyle(AppTheme.accent)
+                        Text(line).font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .cardStyle()
+    }
+
+    // MARK: Period (#1)
+    func periodSection(daysBack: Int, title: String) -> some View {
+        let points = HistoryLoader.dayPoints(daysBack: daysBack, today: appState.stats)
+        let archived = HistoryLoader.archivedEvents(daysBack: daysBack)
+        let periodEvents = archived.flatMap { $0.events }
+        let agg = TodayAggregator.compute(events: periodEvents, archived: [])
+        let totalKeys = points.reduce(0) { $0 + $1.keystrokes }
+        let totalMin = points.reduce(0.0) { $0 + $1.activeMinutes }
+        let avgMin = points.isEmpty ? 0 : totalMin / Double(points.count)
+        return VStack(spacing: 22) {
+            VStack(spacing: 14) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold)).tracking(1.4)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 12) {
+                    tile("keyboard", AppTheme.tileKey, "Total keys", "\(totalKeys)")
+                    tile("clock", AppTheme.accent, "Active", "\(Int(totalMin / 60))h")
+                    tile("calendar", AppTheme.tileClick, "Avg/day", "\(Int(avgMin))m")
+                    tile("scope", AppTheme.tileCursor, "Cursor", Self.distanceText(agg.cursorDistance))
+                }
+            }
+            if points.count > 1 {
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionTitle("ACTIVE MINUTES PER DAY", "Across the selected range")
+                    Chart(points) { p in
+                        BarMark(x: .value("Day", p.date, unit: .day),
+                                y: .value("Minutes", p.activeMinutes))
+                            .foregroundStyle(AppTheme.accent.opacity(0.9))
+                            .cornerRadius(3)
+                    }
+                    .chartXAxis { AxisMarks(values: .automatic(desiredCount: 8)) { _ in
+                        AxisValueLabel(format: .dateTime.weekday(.abbreviated)).foregroundStyle(.white.opacity(0.5)) } }
+                    .frame(height: 170)
+                }
+                .cardStyle()
+            }
+            if !agg.categories.isEmpty { categoriesCard(agg) }
+            if !agg.apps.isEmpty { appsCard(agg) }
+            insightsCard(agg)
+        }
     }
 
     func hardwareRow(_ s: TodayStats) -> some View {
@@ -258,7 +393,6 @@ extension DashboardView {
     }
 }
 
-// MARK: - Shared card modifier
 private struct CardStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -267,23 +401,17 @@ private struct CardStyle: ViewModifier {
             .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.card))
     }
 }
+extension View { func cardStyle() -> some View { modifier(CardStyle()) } }
 
-extension View {
-    func cardStyle() -> some View { modifier(CardStyle()) }
-}
-
-// MARK: - Activity ring
 struct ActivityRing: View {
     let progress: Double
     let color: Color
     let size: CGFloat
     let line: CGFloat
-
     var body: some View {
         ZStack {
             Circle().stroke(color.opacity(0.22), lineWidth: line)
-            Circle()
-                .trim(from: 0, to: progress)
+            Circle().trim(from: 0, to: progress)
                 .stroke(style: StrokeStyle(lineWidth: line, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .foregroundStyle(color)
@@ -293,7 +421,6 @@ struct ActivityRing: View {
     }
 }
 
-// MARK: - Theme
 enum AppTheme {
     static let accent = Color(red: 0.35, green: 0.62, blue: 1.0)
     static let accentDeep = Color(red: 0.40, green: 0.28, blue: 0.98)
@@ -305,4 +432,18 @@ enum AppTheme {
     static let tileScroll = Color(red: 0.92, green: 0.68, blue: 1.0)
     static let batteryGreen = Color(red: 0.35, green: 0.85, blue: 0.55)
     static let sitesAccent = Color(red: 1.0, green: 0.80, blue: 0.40)
+}
+
+extension Color {
+    init(hex: String) {
+        var h = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        h = h.replacingOccurrences(of: "#", with: "")
+        var v: UInt64 = 0
+        Scanner(string: h).scanHexInt64(&v)
+        self.init(.sRGB,
+                  red: Double((v >> 16) & 0xFF) / 255.0,
+                  green: Double((v >> 8) & 0xFF) / 255.0,
+                  blue: Double(v & 0xFF) / 255.0,
+                  opacity: 1.0)
+    }
 }

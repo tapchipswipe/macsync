@@ -1,13 +1,5 @@
 import Foundation
 
-/// Daily sync scheduler.
-///
-/// Primary mechanism: a repeating wall-clock Timer that computes the next
-/// occurrence of the configured sync time (default 23:59 local) and fires
-/// once per day. NSBackgroundActivityScheduler is installed as a watchdog:
-/// if the daily timer missed (e.g., Mac was asleep at 23:59), the background
-/// activity (tolerance-checked, min interval 1 h) performs the catch-up sync
-/// for any buffered days that have not yet been exported.
 final class SyncScheduler {
     static let defaultSyncHour = 23
     static let defaultSyncMinute = 59
@@ -15,16 +7,12 @@ final class SyncScheduler {
     private let syncEngine: iCloudSync
     private var dailyTimer: Timer?
     private var backgroundActivity: NSBackgroundActivityScheduler?
-    private var lastSyncDay: String?
 
     var onSyncFired: (() -> Void)?
-
-    /// Next scheduled wall-clock sync, for display in the menu.
+    var onCatchUpSynced: ((Int) -> Void)?
     private(set) var nextScheduledSync: Date?
 
-    init(syncEngine: iCloudSync) {
-        self.syncEngine = syncEngine
-    }
+    init(syncEngine: iCloudSync) { self.syncEngine = syncEngine }
 
     func start() {
         scheduleDailyTimer()
@@ -32,68 +20,52 @@ final class SyncScheduler {
     }
 
     func stop() {
-        dailyTimer?.invalidate()
-        dailyTimer = nil
-        if let activity = backgroundActivity {
-            activity.invalidate()
-            backgroundActivity = nil
-        }
+        dailyTimer?.invalidate(); dailyTimer = nil
+        backgroundActivity?.invalidate(); backgroundActivity = nil
     }
-
-    // MARK: - Daily wall-clock timer
 
     private func scheduleDailyTimer() {
         dailyTimer?.invalidate()
         let next = Self.nextSyncDate(from: Date())
         nextScheduledSync = next
-        let interval = next.timeIntervalSinceNow
         let timer = Timer(fire: next, interval: 0, repeats: false) { [weak self] _ in
             self?.fireDailySync()
         }
         RunLoop.main.add(timer, forMode: .common)
         dailyTimer = timer
-        NSLog("macsync: next daily sync scheduled for \(next) (in \(Int(interval))s)")
+        Log.sync.info("Next daily sync scheduled for \(next, privacy: .public)")
     }
 
     static func nextSyncDate(from now: Date) -> Date {
-        var components = Calendar.current.dateComponents([.year, .month, .day], from: now)
-        components.hour = defaultSyncHour
-        components.minute = defaultSyncMinute
-        components.second = 0
-        let today = Calendar.current.date(from: components)!
+        var c = Calendar.current.dateComponents([.year, .month, .day], from: now)
+        c.hour = defaultSyncHour; c.minute = defaultSyncMinute; c.second = 0
+        let today = Calendar.current.date(from: c)!
         if today > now { return today }
         return Calendar.current.date(byAdding: .day, value: 1, to: today)!
     }
 
     private func fireDailySync() {
-        let today = SyncFormat.dayString()
-        // Sync *yesterday* (complete day) plus any earlier unsynced days.
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
         syncEngine.syncUnsyncedDays(upToAndIncluding: SyncFormat.dayString(for: yesterday))
-        lastSyncDay = today
         onSyncFired?()
         scheduleDailyTimer()
     }
 
-    // MARK: - Background watchdog (catches sleep/missed runs)
-
     private func installBackgroundActivity() {
         let activity = NSBackgroundActivityScheduler(identifier: "com.macsync.sync")
         activity.repeats = true
-        activity.interval = 3600          // check hourly
+        activity.interval = 3600
         activity.tolerance = 1800
         activity.qualityOfService = .utility
         activity.schedule { [weak self] completion in
-            guard let self else {
-                completion(.finished)
-                return
-            }
+            guard let self else { completion(.finished); return }
             let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
             let yesterdayStr = SyncFormat.dayString(for: yesterday)
-            let unsynced = DataStore.shared.bufferedDays().filter { $0 <= yesterdayStr }
-            if !unsynced.isEmpty {
-                NSLog("macsync: watchdog syncing \(unsynced.count) missed day(s): \(unsynced)")
+            let missed = DataStore.shared.bufferedDays().filter { $0 <= yesterdayStr }
+            if !missed.isEmpty {
+                Log.sync.info("Watchdog catching up \(missed.count) missed day(s)")
                 self.syncEngine.syncUnsyncedDays(upToAndIncluding: yesterdayStr)
+                self.onCatchUpSynced?(missed.count)
                 self.onSyncFired?()
             }
             completion(.finished)
@@ -101,9 +73,6 @@ final class SyncScheduler {
         backgroundActivity = activity
     }
 
-    // MARK: - Manual sync (from menu)
-
-    /// Compiles and uploads *today's* logs so far (non-destructive — buffer stays).
     func syncNow() {
         syncEngine.syncDay(SyncFormat.dayString(), archiveAfterSuccess: false)
         onSyncFired?()

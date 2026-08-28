@@ -43,7 +43,7 @@ final class PermissionsManager {
             requestScreenRecording()
             UserDefaults.standard.set(true, forKey: "macsync.onboarded")
             if !allCriticalGranted {
-                showOnboardingAlert()
+                Task { @MainActor in OnboardingWindowController.shared.show(permissions: self) }
             }
         }
         locationTracker.start()

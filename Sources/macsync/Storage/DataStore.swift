@@ -15,6 +15,7 @@ final class DataStore {
     let bufferDir: URL
     let stateDir: URL
     let exportsDir: URL
+    let archiveDir: URL
 
     private let writeQueue = DispatchQueue(label: "com.macsync.datastore", qos: .utility)
     private let lock = NSLock()
@@ -33,7 +34,8 @@ final class DataStore {
         bufferDir = root.appendingPathComponent("buffer", isDirectory: true)
         stateDir = root.appendingPathComponent("state", isDirectory: true)
         exportsDir = root.appendingPathComponent("Exports", isDirectory: true)
-        for dir in [root, bufferDir, stateDir, exportsDir] {
+        archiveDir = root.appendingPathComponent("archive", isDirectory: true)
+        for dir in [root, bufferDir, stateDir, exportsDir, archiveDir] {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
         loadState()
@@ -64,7 +66,7 @@ final class DataStore {
                         try handle.seekToEnd()
                         try handle.write(contentsOf: line)
                     } catch {
-                        NSLog("macsync DataStore append error: \(error)")
+                        Log.store.error("append error: \(error.localizedDescription)")
                     }
                 }
             } else {

@@ -9,8 +9,17 @@ struct MacsyncApp: App {
         MenuBarExtra {
             MenuContentView(appState: appState)
         } label: {
+            // Health dot (#10): red when a permission is missing or sync failed.
             Image(systemName: appState.isTracking ? "waveform.path.ecg" : "waveform.path.ecg.rectangle")
                 .symbolRenderingMode(.hierarchical)
+                .overlay(alignment: .topTrailing) {
+                    if appState.healthIsBad {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 6, height: 6)
+                            .offset(x: 5, y: -4)
+                    }
+                }
         }
         .menuBarExtraStyle(.window)
 
@@ -18,7 +27,7 @@ struct MacsyncApp: App {
             DashboardView()
                 .environmentObject(appState)
         }
-        .defaultSize(width: 760, height: 640)
+        .defaultSize(width: 940, height: 700)
         .windowResizability(.contentSize)
     }
 }

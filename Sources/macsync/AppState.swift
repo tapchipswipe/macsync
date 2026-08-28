@@ -1,14 +1,12 @@
 import AppKit
 import Combine
+import CoreLocation
 import Foundation
 import ServiceManagement
 
-/// Central application state, exposed to the MenuBarExtra UI.
 @MainActor
 final class AppState: ObservableObject {
     static let shared = AppState()
-
-    // MARK: - Collectors / services
 
     let permissions = PermissionsManager()
     let locationTracker = LocationTracker()
@@ -20,8 +18,6 @@ final class AppState: ObservableObject {
     private let syncEngine = iCloudSync()
     private(set) lazy var scheduler = SyncScheduler(syncEngine: syncEngine)
 
-    // MARK: - Published state
-
     @Published var isTracking = false
     @Published var stats = TodayStats.empty
     @Published var todayEventCount = 0
@@ -29,12 +25,10 @@ final class AppState: ObservableObject {
     @Published var lastSyncSuccess = false
     @Published var lastSyncDetail = "Never synced"
     @Published var nextScheduledSync: Date?
+    @Published var missedDaysSynced = 0
 
-    // Launch at Login
     @Published var launchAtLogin = false
     @Published var launchAtLoginNeedsApproval = false
-
-    // Permission status (refreshed when menu opens)
     @Published var accessibilityGranted = false
     @Published var screenRecordingGranted = false
 
@@ -48,27 +42,14 @@ final class AppState: ObservableObject {
         }
         refreshStats()
         refreshLaunchAtLoginStatus()
+        refreshPermissionStatus()
         startAggregationTimer()
-    }
-
-    private func startAggregationTimer() {
-        aggregationTimer?.invalidate()
-        let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refreshAggregation() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        aggregationTimer = timer
-    }
-
-    func refreshAggregation() {
-        let day = SyncFormat.dayString()
-        let events = DataStore.shared.events(forDay: day)
-        stats = TodayAggregator.compute(events: events)
     }
 
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching() {
+        DataStore.shared.pruneBuffers(olderThan: 30)
         permissions.runOnboardingIfNeeded(locationTracker: locationTracker)
         startTracking()
         scheduler.start()
@@ -78,6 +59,9 @@ final class AppState: ObservableObject {
                 self?.nextScheduledSync = self?.scheduler.nextScheduledSync
                 self?.refreshStats()
             }
+        }
+        scheduler.onCatchUpSynced = { [weak self] count in
+            Task { @MainActor in self?.missedDaysSynced = count }
         }
         startLocationPingTimer()
     }
@@ -110,9 +94,7 @@ final class AppState: ObservableObject {
         isTracking = false
     }
 
-    func toggleTracking() {
-        isTracking ? stopTracking() : startTracking()
-    }
+    func toggleTracking() { isTracking ? stopTracking() : startTracking() }
 
     // MARK: - Stats / sync
 
@@ -124,8 +106,53 @@ final class AppState: ObservableObject {
         lastSyncDetail = store.lastSyncDetail
     }
 
-    func syncNow() {
-        scheduler.syncNow()
+    func refreshAggregation() {
+        enforceNightPause()
+        let day = SyncFormat.dayString()
+        let events = DataStore.shared.events(forDay: day)
+        let archived = HistoryLoader.archivedEvents(daysBack: 7)
+        stats = TodayAggregator.compute(events: events, archived: archived)
+    }
+
+    func syncNow() { scheduler.syncNow() }
+
+    func openOnboarding() {
+        OnboardingWindowController.shared.show(permissions: permissions)
+    }
+
+    // MARK: - Night pause (#17)
+
+    private func enforceNightPause() {
+        guard SyncOptions.nightPauseEnabled else {
+            if !isTracking && pausedForNight { pausedForNight = false; startTracking() }
+            return
+        }
+        if SyncOptions.isInNightPauseWindow() {
+            if isTracking { stopTracking(); pausedForNight = true }
+        } else if pausedForNight {
+            pausedForNight = false
+            startTracking()
+        }
+    }
+    private var pausedForNight = false
+
+    // MARK: - Health for menu-bar icon (#10)
+
+    var healthIsBad: Bool {
+        !accessibilityGranted || !screenRecordingGranted
+            || (lastSyncDate != nil && !lastSyncSuccess)
+    }
+
+    private func startAggregationTimer() {
+        aggregationTimer?.invalidate()
+        let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshAggregation()
+                self?.refreshPermissionStatus()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        aggregationTimer = timer
     }
 
     private func startLocationPingTimer() {
@@ -137,7 +164,7 @@ final class AppState: ObservableObject {
         locationPingTimer = timer
     }
 
-    // MARK: - Permissions UI support
+    // MARK: - Permissions
 
     func refreshPermissionStatus() {
         accessibilityGranted = permissions.isAccessibilityTrusted
@@ -156,35 +183,24 @@ final class AppState: ObservableObject {
     func refreshLaunchAtLoginStatus() {
         switch SMAppService.mainApp.status {
         case .enabled:
-            launchAtLogin = true
-            launchAtLoginNeedsApproval = false
+            launchAtLogin = true; launchAtLoginNeedsApproval = false
         case .requiresApproval:
-            launchAtLogin = true
-            launchAtLoginNeedsApproval = true
+            launchAtLogin = true; launchAtLoginNeedsApproval = true
         case .notRegistered, .notFound:
-            launchAtLogin = false
-            launchAtLoginNeedsApproval = false
+            launchAtLogin = false; launchAtLoginNeedsApproval = false
         @unknown default:
-            launchAtLogin = false
-            launchAtLoginNeedsApproval = false
+            launchAtLogin = false; launchAtLoginNeedsApproval = false
         }
     }
 
     func toggleLaunchAtLogin(_ enable: Bool) {
         if enable {
-            do {
-                try SMAppService.mainApp.register()
-            } catch {
-                NSLog("macsync: SMAppService register failed: \(error.localizedDescription)")
-            }
+            do { try SMAppService.mainApp.register() }
+            catch { Log.app.error("SMAppService register failed: \(error.localizedDescription)") }
         } else {
-            // unregister() is async throws on the modern SDK.
             Task {
-                do {
-                    try await SMAppService.mainApp.unregister()
-                } catch {
-                    NSLog("macsync: SMAppService unregister failed: \(error.localizedDescription)")
-                }
+                do { try await SMAppService.mainApp.unregister() }
+                catch { Log.app.error("SMAppService unregister failed: \(error.localizedDescription)") }
                 await MainActor.run { self.refreshLaunchAtLoginStatus() }
             }
             return
@@ -192,13 +208,6 @@ final class AppState: ObservableObject {
         refreshLaunchAtLoginStatus()
     }
 
-    func openLoginItemsSettings() {
-        SMAppService.openSystemSettingsLoginItems()
-    }
-
-    // MARK: - Misc actions
-
-    func openDataFolder() {
-        NSWorkspace.shared.open(DataStore.shared.root)
-    }
+    func openLoginItemsSettings() { SMAppService.openSystemSettingsLoginItems() }
+    func openDataFolder() { NSWorkspace.shared.open(DataStore.shared.root) }
 }
