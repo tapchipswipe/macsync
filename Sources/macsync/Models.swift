@@ -100,6 +100,7 @@ struct InputMetricsPayload: Codable {
     let cursorDistancePoints: Double
     let activeSeconds: Int      // seconds within the bucket with any input
     let tapEnabled: Bool        // false if Accessibility permission was missing
+    var secureInputSuppressed: Bool = false  // true when macOS Secure Input hid keyDown events
 }
 
 struct BrowserActivityPayload: Codable {

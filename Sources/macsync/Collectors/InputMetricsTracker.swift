@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import Carbon.HIToolbox
 
 /// Global input METADATA tracker via CGEvent tap.
 ///
@@ -28,6 +29,9 @@ final class InputMetricsTracker {
     private var lastMouseLocation: CGPoint?
 
     private(set) var tapEnabled = false
+    /// True when macOS Secure Input is active AND the tap saw no keyDown events
+    /// in the current bucket — meaning keystroke counts are suppressed by the OS.
+    private(set) var secureInputSuppressed = false
 
     func start() {
         stop()
@@ -201,6 +205,9 @@ final class InputMetricsTracker {
             activeSeconds += Int(now.timeIntervalSince(last))
         }
         let hadActivity = keystrokes > 0 || clicks > 0 || scrolls > 0 || cursorDistance > 0
+        // Detect Secure Input suppression: OS-level flag is set AND the tap saw
+        // zero keyDown events this bucket (under secure input, keyDown is withheld).
+        secureInputSuppressed = IsSecureEventInputEnabled() && keystrokes == 0
         let payload = InputMetricsPayload(
             bucketStart: bucketStart,
             bucketEnd: now,
@@ -209,7 +216,8 @@ final class InputMetricsTracker {
             scrollEvents: scrolls,
             cursorDistancePoints: cursorDistance,
             activeSeconds: activeSeconds,
-            tapEnabled: tapEnabled
+            tapEnabled: tapEnabled,
+            secureInputSuppressed: secureInputSuppressed
         )
         // Reset for next bucket.
         bucketStart = now

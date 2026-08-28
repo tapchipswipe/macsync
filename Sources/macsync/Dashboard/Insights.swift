@@ -174,5 +174,9 @@ enum InsightsBuilder {
         return "⚠️ \(top.name) is at \(Int(top.seconds / 60))m today — \(Int(top.seconds / max(avg, 1) * 100))% of your usual (\(Int(avg / 60))m)."
     }
 
-    static func distance(_ pts: Double) -> String { DashboardView.distanceText(pts) }
+    static func distance(_ pts: Double) -> String {
+        let meters = pts / 72.0 * 0.0254
+        if meters < 1000 { return "\(Int(meters))m" }
+        return String(format: "%.1fkm", meters / 1000.0)
+    }
 }

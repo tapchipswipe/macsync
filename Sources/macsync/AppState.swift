@@ -32,6 +32,8 @@ final class AppState: ObservableObject {
     @Published var launchAtLoginNeedsApproval = false
     @Published var accessibilityGranted = false
     @Published var screenRecordingGranted = false
+    /// True while macOS Secure Input is withholding keyDown events from the tap.
+    @Published var secureInputSuppressed = false
 
     private var cancellables = Set<AnyCancellable>()
     private var locationPingTimer: Timer?
@@ -44,6 +46,7 @@ final class AppState: ObservableObject {
         refreshStats()
         refreshLaunchAtLoginStatus()
         refreshPermissionStatus()
+        refreshAggregation()    // seed stats immediately on init
         startAggregationTimer()
     }
 
@@ -145,8 +148,12 @@ final class AppState: ObservableObject {
             || (lastSyncDate != nil && !lastSyncSuccess)
     }
 
-    private func startAggregationTimer() {
+        private func startAggregationTimer() {
         aggregationTimer?.invalidate()
+        // immediate first tick at 0.5s so the menu shows fresh stats on launch
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.refreshAggregation(); self?.refreshPermissionStatus() }
+        }
         let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refreshAggregation()
@@ -171,6 +178,7 @@ final class AppState: ObservableObject {
     func refreshPermissionStatus() {
         accessibilityGranted = permissions.isAccessibilityTrusted
         screenRecordingGranted = permissions.hasScreenRecording
+        secureInputSuppressed = inputMetrics.secureInputSuppressed
     }
 
     func requestPermissions() {
