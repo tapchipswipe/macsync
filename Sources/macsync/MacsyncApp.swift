@@ -10,8 +10,16 @@ struct MacsyncApp: App {
             MenuContentView(appState: appState)
         } label: {
             Image(systemName: appState.isTracking ? "waveform.path.ecg" : "waveform.path.ecg.rectangle")
+                .symbolRenderingMode(.hierarchical)
         }
-        .menuBarExtraStyle(.menu)
+        .menuBarExtraStyle(.window)
+
+        Window("macsync Dashboard", id: SceneID.dashboard) {
+            DashboardView()
+                .environmentObject(appState)
+        }
+        .defaultSize(width: 760, height: 640)
+        .windowResizability(.contentSize)
     }
 }
 

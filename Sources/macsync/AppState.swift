@@ -23,6 +23,7 @@ final class AppState: ObservableObject {
     // MARK: - Published state
 
     @Published var isTracking = false
+    @Published var stats = TodayStats.empty
     @Published var todayEventCount = 0
     @Published var lastSyncDate: Date?
     @Published var lastSyncSuccess = false
@@ -39,6 +40,7 @@ final class AppState: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var locationPingTimer: Timer?
+    private var aggregationTimer: Timer?
 
     private init() {
         DataStore.shared.onStatsChanged = { [weak self] in
@@ -46,6 +48,22 @@ final class AppState: ObservableObject {
         }
         refreshStats()
         refreshLaunchAtLoginStatus()
+        startAggregationTimer()
+    }
+
+    private func startAggregationTimer() {
+        aggregationTimer?.invalidate()
+        let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshAggregation() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        aggregationTimer = timer
+    }
+
+    func refreshAggregation() {
+        let day = SyncFormat.dayString()
+        let events = DataStore.shared.events(forDay: day)
+        stats = TodayAggregator.compute(events: events)
     }
 
     // MARK: - Lifecycle

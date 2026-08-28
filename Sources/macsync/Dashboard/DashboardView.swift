@@ -1,0 +1,308 @@
+import Charts
+import SwiftUI
+
+struct DashboardView: View {
+    @EnvironmentObject private var appState: AppState
+    private static let timeFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "EEEE, MMM d"; return f
+    }()
+
+    var body: some View {
+        let s = appState.stats
+        ScrollView {
+            VStack(spacing: 22) {
+                hero(s)
+                metricGrid(s)
+                if !s.activity.isEmpty { activityChart(s) }
+                if !s.apps.isEmpty { appsCard(s) }
+                hardwareRow(s)
+            }
+            .padding(24)
+        }
+        .frame(minWidth: 720, minHeight: 600)
+        .background(AppTheme.window.ignoresSafeArea())
+        .preferredColorScheme(.dark)
+    }
+
+    // MARK: - Hero
+    private func hero(_ s: TodayStats) -> some View {
+        HStack(alignment: .center, spacing: 22) {
+            ActivityRing(progress: max(0.001, min(1, s.activeMinutes / 480)),
+                         color: AppTheme.accent, size: 96, line: 9)
+                .overlay(alignment: .center) {
+                    Text("\(Int(s.activeMinutes))")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+            VStack(alignment: .leading, spacing: 5) {
+                Text("TODAY'S FOCUS")
+                    .font(.system(size: 10, weight: .semibold)).tracking(1.7)
+                    .foregroundStyle(.white.opacity(0.6))
+                Text("\(Int(s.activeMinutes)) minutes active")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                HStack(spacing: 6) {
+                    statChip("\(s.keystrokes)", "keys")
+                    statChip("\(s.clicks)", "clicks")
+                    statChip(Self.distanceText(s.cursorDistance), "moved")
+                }
+                Text(Self.timeFmt.string(from: Date()))
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+            Spacer()
+        }
+        .padding(22)
+        .background(
+            LinearGradient(colors: [AppTheme.accent, AppTheme.accentDeep],
+                           startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .overlay(alignment: .topTrailing) {
+            Image(systemName: "waveform.path.ecg")
+                .font(.system(size: 48, weight: .ultraLight))
+                .foregroundStyle(.white.opacity(0.18))
+                .padding(18)
+        }
+    }
+
+    private func statChip(_ value: String, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(value).font(.system(size: 12, weight: .bold, design: .rounded))
+            Text(label).font(.system(size: 11)).opacity(0.7)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .background(Capsule().fill(.white.opacity(0.14)))
+        .foregroundStyle(.white)
+    }
+}
+
+// MARK: - DashboardView (visual sections)
+extension DashboardView {
+
+    static func distanceText(_ pts: Double) -> String {
+        let meters = pts / 72.0 * 0.0254
+        if meters < 1000 { return "\(Int(meters))m" }
+        return String(format: "%.1fkm", meters / 1000.0)
+    }
+
+    func metricGrid(_ s: TodayStats) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+            tile("keyboard", AppTheme.tileKey, "Keys", "\(s.keystrokes)")
+            tile("hand.tap", AppTheme.tileClick, "Clicks", "\(s.clicks)")
+            tile("arrow.up.arrow.down", AppTheme.tileScroll, "Scrolls", "\(s.scrolls)")
+            tile("scope", AppTheme.tileCursor, "Cursor", Self.distanceText(s.cursorDistance))
+        }
+    }
+
+    private func tile(_ icon: String, _ tint: Color, _ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint)
+            Text(value).font(.system(size: 19, weight: .bold, design: .rounded)).foregroundStyle(.white)
+            Text(label).font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.45))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(AppTheme.card))
+    }
+
+    func activityChart(_ s: TodayStats) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("ACTIVITY", "Keystrokes per minute")
+            Chart(s.activity) { pt in
+                BarMark(x: .value("Minute", pt.minute), y: .value("Keys", pt.keystrokes))
+                    .foregroundStyle(AppTheme.accent.opacity(0.85))
+                    .cornerRadius(2)
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 8)) { _ in
+                    AxisValueLabel().foregroundStyle(.white.opacity(0.5))
+                }
+            }
+            .frame(height: 150)
+        }
+        .cardStyle()
+    }
+
+    func appsCard(_ s: TodayStats) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("TOP APPS", "Focus time by application")
+            let total = max(s.apps.reduce(TimeInterval(0)) { $0 + $1.seconds }, 1)
+            VStack(spacing: 10) {
+                ForEach(s.apps.prefix(6)) { a in
+                    HStack(spacing: 12) {
+                        Text(String(a.name.prefix(20)))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .frame(width: 150, alignment: .leading)
+                            .lineLimit(1)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(.white.opacity(0.08))
+                                Capsule().fill(AppTheme.accent)
+                                    .frame(width: geo.size.width * CGFloat(a.seconds / total))
+                            }
+                        }
+                        .frame(height: 8)
+                        Text("\(Int(a.seconds / 60))m")
+                            .font(.system(size: 12, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.55))
+                            .frame(width: 46, alignment: .trailing)
+                    }
+                }
+            }
+        }
+        .cardStyle()
+    }
+
+    func hardwareRow(_ s: TodayStats) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            batteryCard(s)
+            if !s.pages.isEmpty { sitesCard(s) } else { cpuCard(s) }
+        }
+    }
+
+    private func batteryCard(_ s: TodayStats) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Battery", systemImage: batteryIcon(s))
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+                Spacer()
+                if let pct = s.batteryPercent {
+                    Text("\(pct)%").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                }
+            }
+            if !s.batteryTrace.isEmpty {
+                Chart(s.batteryTrace) { sample in
+                    if let level = sample.level {
+                        LineMark(x: .value("Time", sample.time), y: .value("Level", level))
+                            .foregroundStyle(AppTheme.batteryGreen)
+                            .interpolationMethod(.catmullRom)
+                    }
+                }
+                .chartYScale(domain: 0...100)
+                .chartXAxis(.hidden)
+                .frame(height: 34)
+            } else {
+                Text("no battery samples yet")
+                    .font(.system(size: 11)).foregroundStyle(.white.opacity(0.4))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.card))
+    }
+
+    private func cpuCard(_ s: TodayStats) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("System", systemImage: "cpu")
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+            HStack(spacing: 14) {
+                gaugeChip("CPU", Int(s.cpuLoad))
+                gaugeChip("RAM", Int(s.memoryPressure))
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.card))
+    }
+
+    private func gaugeChip(_ label: String, _ value: Int) -> some View {
+        VStack(spacing: 5) {
+            ZStack {
+                Circle().trim(from: 0, to: 0.75).stroke(.white.opacity(0.1), lineWidth: 5)
+                Circle().trim(from: 0, to: 0.75 * CGFloat(min(value, 100)) / 100)
+                    .stroke(AppTheme.accent, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .rotationEffect(.degrees(135))
+                Text("\(value)%").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.white)
+            }
+            .frame(width: 52, height: 52)
+            Text(label).font(.system(size: 10)).foregroundStyle(.white.opacity(0.4))
+        }
+    }
+
+    private func sitesCard(_ s: TodayStats) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("TOP SITES", "Viewed via Safari / Chrome")
+            ForEach(s.pages.prefix(4)) { p in
+                HStack(spacing: 8) {
+                    Circle().fill(AppTheme.sitesAccent).frame(width: 6, height: 6)
+                    Text(p.title).lineLimit(1)
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.85))
+                    Spacer()
+                    Text("\(p.count)")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.card))
+    }
+
+    private func sectionTitle(_ text: String, _ subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(text).font(.system(size: 11, weight: .semibold)).tracking(1.3)
+                .foregroundStyle(.white.opacity(0.55))
+            Text(subtitle).font(.system(size: 11)).foregroundStyle(.white.opacity(0.3))
+        }
+    }
+
+    private func batteryIcon(_ s: TodayStats) -> String {
+        guard let _ = s.batteryPercent else { return "battery.0" }
+        return s.batteryCharging == true ? "battery.100percent.bolt" : "battery.75percent"
+    }
+}
+
+// MARK: - Shared card modifier
+private struct CardStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.card))
+    }
+}
+
+extension View {
+    func cardStyle() -> some View { modifier(CardStyle()) }
+}
+
+// MARK: - Activity ring
+struct ActivityRing: View {
+    let progress: Double
+    let color: Color
+    let size: CGFloat
+    let line: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(color.opacity(0.22), lineWidth: line)
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(style: StrokeStyle(lineWidth: line, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .foregroundStyle(color)
+                .shadow(color: color.opacity(0.5), radius: 8)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+// MARK: - Theme
+enum AppTheme {
+    static let accent = Color(red: 0.35, green: 0.62, blue: 1.0)
+    static let accentDeep = Color(red: 0.40, green: 0.28, blue: 0.98)
+    static let window = Color(red: 0.07, green: 0.08, blue: 0.11)
+    static let card = Color.white.opacity(0.05)
+    static let tileKey = Color(red: 0.55, green: 0.78, blue: 1.0)
+    static let tileClick = Color(red: 1.0, green: 0.55, blue: 0.42)
+    static let tileCursor = Color(red: 0.70, green: 1.0, blue: 0.60)
+    static let tileScroll = Color(red: 0.92, green: 0.68, blue: 1.0)
+    static let batteryGreen = Color(red: 0.35, green: 0.85, blue: 0.55)
+    static let sitesAccent = Color(red: 1.0, green: 0.80, blue: 0.40)
+}

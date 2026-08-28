@@ -1,110 +1,238 @@
 import SwiftUI
 
-/// The MenuBarExtra dropdown content.
 struct MenuContentView: View {
     @ObservedObject var appState: AppState
-
-    private static let timeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .none
-        f.timeStyle = .short
-        return f
-    }()
-
-    private static let dateTimeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .short
-        f.timeStyle = .short
-        return f
-    }()
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        // MARK: Status section
-        Group {
-            Text(appState.isTracking ? "macsync — Tracking" : "macsync — Paused")
-                .font(.headline)
-            Text("Events today: \(appState.todayEventCount)")
-            Text(syncStatusText)
-            if let next = appState.nextScheduledSync {
-                Text("Next auto-sync: \(next, formatter: Self.dateTimeFormatter)")
+        VStack(spacing: 0) {
+            header
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    statGrid
+                    focusBars
+                    Divider()
+                    syncCard
+                    Divider()
+                    permissionsCard
+                }
+                .padding(14)
             }
+            footer
         }
-
-        Divider()
-
-        // MARK: Actions
-        Button(appState.isTracking ? "Pause Tracking" : "Resume Tracking") {
-            appState.toggleTracking()
-        }
-        Button("Sync Now") {
-            appState.syncNow()
-        }
-        Button("Open Data Folder") {
-            appState.openDataFolder()
-        }
-
-        Divider()
-
-        // MARK: Permissions
-        permissionRow(
-            label: "Accessibility (input counts)",
-            granted: appState.accessibilityGranted,
-            action: { appState.permissions.openAccessibilitySettings() }
-        )
-        permissionRow(
-            label: "Screen Recording (window titles)",
-            granted: appState.screenRecordingGranted,
-            action: { appState.permissions.openScreenRecordingSettings() }
-        )
-        Button("Request / Review Permissions…") {
-            appState.requestPermissions()
-        }
-
-        Divider()
-
-        // MARK: Launch at Login
-        Toggle("Launch at Login", isOn: Binding(
-            get: { appState.launchAtLogin },
-            set: { appState.toggleLaunchAtLogin($0) }
-        ))
-        .toggleStyle(.checkbox)
-
-        if appState.launchAtLoginNeedsApproval {
-            Button("Approval needed — open Login Items settings") {
-                appState.openLoginItemsSettings()
-            }
-        }
-
-        Divider()
-
-        Button("Quit macsync") {
-            NSApplication.shared.terminate(nil)
-        }
-        .keyboardShortcut("q")
+        .frame(width: 340)
         .onAppear {
             appState.refreshPermissionStatus()
             appState.refreshLaunchAtLoginStatus()
             appState.refreshStats()
+            appState.refreshAggregation()
             appState.nextScheduledSync = appState.scheduler.nextScheduledSync
         }
     }
 
-    // MARK: - Helpers
-
-    private var syncStatusText: String {
-        guard let date = appState.lastSyncDate else { return "Last sync: never" }
-        let formatted = Self.dateTimeFormatter.string(from: date)
-        return appState.lastSyncSuccess
-            ? "Last sync: \(formatted) — \(appState.lastSyncDetail)"
-            : "Last sync FAILED (\(formatted)) — \(appState.lastSyncDetail)"
-    }
-
-    @ViewBuilder
-    private func permissionRow(label: String, granted: Bool, action: @escaping () -> Void) -> some View {
-        if granted {
-            Text("✓ \(label)")
-        } else {
-            Button("✗ \(label) — grant…", action: action)
+    // MARK: - Header
+    private var header: some View {
+        ZStack(alignment: .leading) {
+            Rectangle().fill(.ultraThinMaterial)
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(LinearGradient(colors: [AppTheme.accent, AppTheme.accentDeep],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 38, height: 38)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("macsync").font(.system(size: 15, weight: .bold, design: .rounded))
+                    Text(appState.isTracking ? "Tracking your day" : "Paused")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if appState.isTracking {
+                    HStack(spacing: 5) {
+                        Circle().fill(AppTheme.batteryGreen).frame(width: 7, height: 7)
+                            .modifier(PulseModifier())
+                        Text("LIVE").font(.system(size: 10, weight: .bold)).tracking(1)
+                            .foregroundStyle(AppTheme.batteryGreen)
+                    }
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
         }
     }
+
+    // MARK: - Stat tiles
+    private var statGrid: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
+            miniTile(icon: "keyboard", tint: AppTheme.tileKey, label: "Keystrokes", value: "\(appState.stats.keystrokes)")
+            miniTile(icon: "hand.tap", tint: AppTheme.tileClick, label: "Clicks", value: "\(appState.stats.clicks)")
+            miniTile(icon: "scope", tint: AppTheme.tileCursor, label: "Cursor", value: DashboardView.distanceText(appState.stats.cursorDistance))
+            miniTile(icon: "clock", tint: AppTheme.accent, label: "Active", value: "\(Int(appState.stats.activeMinutes))m")
+        }
+    }
+
+    private func miniTile(icon: String, tint: Color, label: String, value: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(tint.opacity(0.15)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value).font(.system(size: 15, weight: .bold, design: .rounded))
+                Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+    }
+
+    // MARK: - Focus bars
+    private var focusBars: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("TOP APPS")
+                .font(.system(size: 10, weight: .semibold)).tracking(1.2)
+                .foregroundStyle(.secondary)
+            let apps = Array(appState.stats.apps.prefix(3))
+            let total = max(apps.reduce(TimeInterval(0)) { $0 + $1.seconds }, 1)
+            if apps.isEmpty {
+                Text("No focus captured yet — grant Accessibility")
+                    .font(.system(size: 11)).foregroundStyle(.tertiary)
+            }
+            ForEach(apps) { a in
+                HStack(spacing: 10) {
+                    Text(String(a.name.prefix(16)))
+                        .font(.system(size: 12))
+                        .frame(width: 120, alignment: .leading)
+                        .lineLimit(1)
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.white.opacity(0.08))
+                            Capsule().fill(AppTheme.accent)
+                                .frame(width: geo.size.width * CGFloat(a.seconds / total))
+                        }
+                    }
+                    .frame(height: 6)
+                    Text("\(Int(a.seconds / 60))m")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, alignment: .trailing)
+                }
+            }
+        }
+    }
+
+    // MARK: - Sync
+    private var syncCard: some View {
+        HStack(spacing: 10) {
+            Image(systemName: syncIcon)
+                .foregroundStyle(syncTint)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(syncTint.opacity(0.15)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(syncTitle).font(.system(size: 12, weight: .semibold))
+                Text(syncDetail).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Button("Sync") { appState.syncNow() }
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.accent)
+                .controlSize(.small)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+    }
+
+    // MARK: - Permissions + actions
+    private var permissionsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                permissionDot(appState.accessibilityGranted, "Accessibility")
+                permissionDot(appState.screenRecordingGranted, "Screen Recording")
+                Spacer()
+                Button("Request…") { appState.requestPermissions() }
+                    .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(AppTheme.accent)
+            }
+            HStack(spacing: 10) {
+                Button { openWindow(id: SceneID.dashboard) } label: {
+                    Label("Dashboard", systemImage: "chart.xyaxis.line").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).tint(AppTheme.accent)
+                Button { appState.openDataFolder() } label: {
+                    Label("Data", systemImage: "folder").labelStyle(.iconOnly)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+    }
+
+    private func permissionDot(_ granted: Bool, _ label: String) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(granted ? AppTheme.batteryGreen : .red).frame(width: 7, height: 7)
+            Text(label).font(.system(size: 11)).foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Footer
+    private var footer: some View {
+        VStack(spacing: 0) {
+            Divider()
+            Toggle("Launch at Login", isOn: Binding(
+                get: { appState.launchAtLogin },
+                set: { appState.toggleLaunchAtLogin($0) }
+            ))
+            .toggleStyle(.switch).controlSize(.mini).font(.system(size: 12))
+            .padding(.horizontal, 14).padding(.vertical, 6)
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                HStack {
+                    Text("Quit macsync")
+                    Spacer()
+                    Text("⌘Q").foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain).font(.system(size: 12))
+            .padding(.horizontal, 14).padding(.vertical, 8)
+        }
+    }
+
+    // MARK: - Sync helpers
+    private var syncIcon: String {
+        appState.lastSyncSuccess ? "checkmark.icloud"
+            : (appState.lastSyncDate == nil ? "icloud.slash" : "exclamationmark.icloud")
+    }
+    private var syncTint: Color { appState.lastSyncSuccess ? AppTheme.batteryGreen : .orange }
+    private var syncTitle: String {
+        appState.lastSyncSuccess ? "Synced to iCloud" : "Sync pending"
+    }
+    private var syncDetail: String {
+        if let d = appState.lastSyncDate {
+            let f = DateFormatter(); f.dateStyle = .none; f.timeStyle = .short
+            return appState.lastSyncSuccess ? "\(f.string(from: d)) · \(appState.lastSyncDetail)"
+                                            : "Failed \(f.string(from: d)) · \(appState.lastSyncDetail)"
+        }
+        return "No sync yet — automatic at 23:59"
+    }
+}
+
+private struct PulseModifier: ViewModifier {
+    @State private var on = false
+    func body(content: Content) -> some View {
+        content
+            .opacity(on ? 0.25 : 1.0)
+            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: on)
+            .onAppear { on = true }
+    }
+}
+
+enum SceneID {
+    static let dashboard = "dashboard"
 }
