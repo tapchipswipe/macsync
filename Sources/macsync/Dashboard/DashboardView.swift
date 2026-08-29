@@ -9,6 +9,7 @@ enum DashRange: String, CaseIterable, Identifiable {
 
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
+    @ObservedObject private var appHistory = AppHistoryStore.shared
     @State private var range: DashRange = .today
     private static let timeFmt: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "EEEE, MMM d"; return f
@@ -45,11 +46,16 @@ struct DashboardView: View {
         case .today:
             let s = appState.stats
             VStack(spacing: 22) {
+                if let app = appHistory.selectedApp { appFilterBanner(app, stats: s) }
                 hero(s)
                 metricGrid(s)
                 if !s.activity.isEmpty { activityChart(s) }
                 if !s.categories.isEmpty { categoriesCard(s) }
-                if !s.apps.isEmpty { appsCard(s) }
+                if let app = appHistory.selectedApp {
+                    appHistoryCard(app, stats: s)
+                } else if !s.apps.isEmpty {
+                    appsCard(s)
+                }
                 insightsCard(s)
                 hardwareRow(s)
             }
@@ -183,6 +189,62 @@ extension DashboardView {
                     }
                 }
             }
+        }
+        .cardStyle()
+    }
+
+    // MARK: Per-app history (#3)
+
+    /// Banner shown at the top of Today when a specific app was picked in the menu.
+    private func appFilterBanner(_ app: String, stats s: TodayStats) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                .font(.system(size: 15)).foregroundStyle(AppTheme.accent)
+            Text("Showing focus history for **\(app)**")
+                .font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
+            Spacer()
+            Button("Clear") { appHistory.clear() }
+                .buttonStyle(.bordered).controlSize(.small)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.accent.opacity(0.12)))
+    }
+
+    /// Hour-by-hour focus timeline for one app, built from today's appFocus events.
+    private func appHistoryCard(_ app: String, stats s: TodayStats) -> some View {
+        let events = DataStore.shared.events(forDay: SyncFormat.dayString())
+        // Minutes of the day (0..<1440) during which this app held focus.
+        var minutes = Array(repeating: 0.0, count: 24)
+        let cal = Calendar.current
+        for e in events {
+            if case .appFocus(let p) = e.payload, p.appName == app {
+                let hour = cal.component(.hour, from: e.ts)
+                minutes[hour] += p.durationSeconds / 60.0
+            }
+        }
+        let points = minutes.enumerated().map { (h: $0.offset, mins: $0.element) }
+        let totalSec = s.apps.first(where: { $0.name == app })?.seconds ?? 0
+        let peak = points.max(by: { $0.mins < $1.mins })
+
+        return VStack(alignment: .leading, spacing: 12) {
+            sectionTitle(app.uppercased(), "Focus time by hour today")
+            HStack(spacing: 14) {
+                Label("\(Int(totalSec / 60))m focused", systemImage: "clock.fill")
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(AppTheme.accent)
+                if let peak, peak.mins > 0 {
+                    Label("Peak \(String(format: "%02d:00", peak.h)) · \(Int(peak.mins))m", systemImage: "chart.bar.fill")
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.55))
+                }
+            }
+            Chart(points, id: \.h) { p in
+                BarMark(x: .value("Hour", p.h), y: .value("Minutes", p.mins))
+                    .foregroundStyle(AppTheme.accent.opacity(0.9))
+                    .cornerRadius(2)
+            }
+            .chartXAxis { AxisMarks(values: .stride(by: 3)) { v in
+                AxisValueLabel { if let h = v.as(Int.self) { Text(String(format: "%02d", h)).foregroundStyle(.white.opacity(0.5)) } } } }
+            .chartYAxis { AxisMarks { _ in AxisValueLabel().foregroundStyle(.white.opacity(0.5)) } }
+            .frame(height: 140)
         }
         .cardStyle()
     }

@@ -51,6 +51,36 @@ struct TodayStats {
     var activeHours: Double { activeSeconds / 3600.0 }
     var topInsight: String? { anomaly ?? insights.first }
 
+    /// Focus score (#1): 0–100 blend of active time vs. an 8h goal (50%),
+    /// deep-work streaks — focus sessions ≥ 25 min (30%), and low zombie-scroll
+    /// share — minutes with a focused window but zero input (20%).
+    var focusScore: Int {
+        let activeScore = min(1.0, activeMinutes / 480.0) * 50.0
+        let deepStreaks = apps.filter { $0.seconds >= 25 * 60 }.count
+        let streakScore = min(1.0, Double(deepStreaks) / 3.0) * 30.0
+        let totalFocusSec = max(activeSeconds + idleSeconds, 1)
+        let zombieShare = zombieSeconds / totalFocusSec
+        let zombieScore = max(0.0, 1.0 - zombieShare) * 20.0
+        return Int(min(100, activeScore + streakScore + zombieScore).rounded())
+    }
+
+    var focusScoreLabel: String {
+        switch focusScore {
+        case 80...: return "Deep focus"
+        case 60..<80: return "Strong"
+        case 40..<60: return "Steady"
+        case 20..<40: return "Scattered"
+        default: return "Warming up"
+        }
+    }
+
+    /// Compact "2h 14m" / "34m" readout for the menu-bar title mode (#7).
+    var activeMenuText: String {
+        let m = Int(activeMinutes)
+        if m >= 60 { return "\(m / 60)h \(m % 60)m" }
+        return "\(m)m"
+    }
+
     static let empty = TodayStats()
 }
 

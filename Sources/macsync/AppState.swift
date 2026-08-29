@@ -34,6 +34,10 @@ final class AppState: ObservableObject {
     @Published var screenRecordingGranted = false
     /// True while macOS Secure Input is withholding keyDown events from the tap.
     @Published var secureInputSuppressed = false
+    /// Menu-bar title mode (#7): show live active time next to the icon.
+    @Published var showMenuBarTime = UserDefaults.standard.bool(forKey: "macsync.menuBarTime") {
+        didSet { UserDefaults.standard.set(showMenuBarTime, forKey: "macsync.menuBarTime") }
+    }
 
     private var cancellables = Set<AnyCancellable>()
     private var locationPingTimer: Timer?

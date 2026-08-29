@@ -10,16 +10,24 @@ struct MacsyncApp: App {
             MenuContentView(appState: appState)
         } label: {
             // Health dot (#10): red when a permission is missing or sync failed.
-            Image(systemName: appState.isTracking ? "waveform.path.ecg" : "waveform.path.ecg.rectangle")
-                .symbolRenderingMode(.hierarchical)
-                .overlay(alignment: .topTrailing) {
-                    if appState.healthIsBad {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 6, height: 6)
-                            .offset(x: 5, y: -4)
+            HStack(spacing: 5) {
+                Image(systemName: appState.isTracking ? "waveform.path.ecg" : "waveform.path.ecg.rectangle")
+                    .symbolRenderingMode(.hierarchical)
+                    .overlay(alignment: .topTrailing) {
+                        if appState.healthIsBad {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 6, height: 6)
+                                .offset(x: 5, y: -4)
+                        }
                     }
+                // Menu-bar title mode (#7): optional live active-time readout.
+                if appState.showMenuBarTime {
+                    Text(appState.stats.activeMenuText)
+                        .font(.system(size: 11, design: .rounded))
+                        .monospacedDigit()
                 }
+            }
         }
         .menuBarExtraStyle(.window)
 
