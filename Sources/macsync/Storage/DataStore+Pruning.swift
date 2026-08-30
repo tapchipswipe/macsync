@@ -40,9 +40,10 @@ extension DataStore {
                         let isDeltaPromo = merchantLC.contains("delta") && p.amount == Decimal(1787)
                         let isGoogleBudget = merchantLC == "google" && p.amount > 100 && (p.cardLast4 == nil || p.cardLast4?.isEmpty == true)
                         let isMarketing = ["turmerry", "panther technology", "bernie from planner5d", "northwestern mutual"].contains(merchantLC)
+                        let isExcluded = merchantLC.contains("kart rising") || merchantLC.contains("steam") || midLC.contains("steampowered")
                         let isZeroOrNeg = p.amount <= 0
 
-                        if isBrokerage || isDeltaPromo || isGoogleBudget || isMarketing || isZeroOrNeg {
+                        if isBrokerage || isDeltaPromo || isGoogleBudget || isMarketing || isExcluded || isZeroOrNeg {
                             modified = true
                             totalPruned += 1
                             return

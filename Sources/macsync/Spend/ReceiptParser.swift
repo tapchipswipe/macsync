@@ -61,7 +61,6 @@ enum ReceiptParser {
         SenderRule(domain: "verizon.com", merchant: "Verizon", category: .utilities),
         SenderRule(domain: "tmobile.com", merchant: "T-Mobile", category: .utilities),
         SenderRule(domain: "att.com", merchant: "AT&T", category: .utilities),
-        SenderRule(domain: "steampowered.com", merchant: "Steam", category: .software),
         SenderRule(domain: "epicgames.com", merchant: "Epic Games", category: .software),
         SenderRule(domain: "playstation.com", merchant: "PlayStation", category: .software),
         SenderRule(domain: "github.com", merchant: "GitHub", category: .software),
@@ -115,6 +114,10 @@ enum ReceiptParser {
         "budget alert", "budget reached", "% of budget", "spending limit",
         "cost threshold", "usage summary", "billing alert", "estimated charges for",
         "daily spend alert"
+    ]
+
+    private static let userExcludedMerchants: [String] = [
+        "kart rising", "steam", "steampowered", "valve corporation"
     ]
 
     // MARK: - Enter / parse
@@ -191,6 +194,9 @@ enum ReceiptParser {
 
         // Cloud budget alerts in subject
         if cloudBudgetKeywords.contains(where: { subjLC.contains($0) }) { return true }
+
+        // User-excluded merchants (e.g. Kart Rising)
+        if userExcludedMerchants.contains(where: { subjLC.contains($0) || senderLC.contains($0) }) { return true }
 
         return false
     }
@@ -273,6 +279,9 @@ enum ReceiptParser {
         if nonPurchaseSubjects.contains(where: { subjLC.contains($0) }) && !subjLC.contains("receipt") && !subjLC.contains("invoice") && !subjLC.contains("order") {
             return true
         }
+
+        // 11. User-excluded merchants (e.g. Kart Rising)
+        if userExcludedMerchants.contains(where: { text.contains($0) || senderLC.contains($0) }) { return true }
 
         return false
     }

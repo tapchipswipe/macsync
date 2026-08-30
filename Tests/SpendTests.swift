@@ -105,13 +105,34 @@ enum ReceiptParserTests {
 
         // ── Shopify billing: "bill for {X}" ──
         let shopify = ReceiptParser.parse(
-            subject: "Aug 13, 2026 bill for Kart Rising LLC",
+            subject: "Aug 13, 2026 bill for Acme Store LLC",
             sender: "Shopify Billing <billing@shopify.com>",
             body: "Your bill for this period.\nTotal: $39.00\nCharged to Visa ending in 4417",
             sentDate: d)
-        expect(shopify.merchant == "Kart Rising LLC", "Shopify 'bill for' merchant extraction")
+        expect(shopify.merchant == "Acme Store LLC", "Shopify 'bill for' merchant extraction")
         expect(shopify.amount == Decimal(string: "39.00"), "Shopify bill total")
         expect(!shopify.needsReview, "Shopify bill high confidence")
+
+        // ── User-excluded merchants (e.g. Kart Rising, Steam) ──
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Aug 13, 2026 bill for Kart Rising LLC", sender: "Shopify Billing <billing@shopify.com>"),
+            "Kart Rising excluded in pass A")
+        let kartRising = ReceiptParser.parse(
+            subject: "Aug 13, 2026 bill for Kart Rising LLC",
+            sender: "Shopify Billing <billing@shopify.com>",
+            body: "Your bill for this period.\nTotal: $421.19\nCharged to Visa ending in 9559",
+            sentDate: d)
+        expect(kartRising.amount == nil, "Kart Rising rejected by exclusion list")
+
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Your Steam purchase receipt", sender: "Steam Support <noreply@steampowered.com>"),
+            "Steam excluded in pass A")
+        let steam = ReceiptParser.parse(
+            subject: "Your Steam purchase receipt",
+            sender: "Steam Support <noreply@steampowered.com>",
+            body: "Thank you for your purchase!\nTotal: $24.99\nPayment method: Visa",
+            sentDate: d)
+        expect(steam.amount == nil, "Steam rejected by exclusion list")
 
         // ── Swell Labs: "Order #X confirmed" (unknown sender, display-name fallback) ──
         expect(ReceiptParser.looksLikeReceipt(
