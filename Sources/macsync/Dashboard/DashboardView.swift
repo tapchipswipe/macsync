@@ -7,6 +7,12 @@ enum DashRange: String, CaseIterable, Identifiable {
     var daysBack: Int { self == .week ? 7 : 30 }
 }
 
+struct ClipboardPoint: Identifiable {
+    let id = UUID()
+    let hour: Int
+    let copies: Int
+}
+
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var appHistory = AppHistoryStore.shared
@@ -45,9 +51,11 @@ struct DashboardView: View {
         switch range {
         case .today:
             let s = appState.stats
+            let todayEvents = DataStore.shared.events(forDay: SyncFormat.dayString())
             VStack(spacing: 22) {
                 if let app = appHistory.selectedApp { appFilterBanner(app, stats: s) }
                 hero(s)
+                meetingIndicator(todayEvents, stats: s)
                 metricGrid(s)
                 if !s.activity.isEmpty { activityChart(s) }
                 if !s.categories.isEmpty { categoriesCard(s) }
@@ -56,6 +64,7 @@ struct DashboardView: View {
                 } else if !s.apps.isEmpty {
                     appsCard(s)
                 }
+                contextSection(s, events: todayEvents)
                 insightsCard(s)
                 hardwareRow(s)
             }
@@ -309,6 +318,192 @@ extension DashboardView {
         .cardStyle()
     }
 
+    // MARK: Context pack cards (v0.4.0)
+
+    func contextSection(_ s: TodayStats, events: [TrackerEvent]) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 2), spacing: 16) {
+            sessionsCard(s)
+            mediaCard(s)
+            clipboardCard(s, series: hourlyClipboard(events))
+            mailCard(s)
+        }
+    }
+
+    private func sessionsCard(_ s: TodayStats) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("SESSIONS", "Locks · wakes · launches")
+            HStack(spacing: 18) {
+                contextStat("lock.fill", AppTheme.tileMoon, "\(s.screenLockCount)", "locks")
+                contextStat("sunrise.fill", AppTheme.tileNetwork, "\(s.wakeCount)", "wakes")
+                contextStat("app.badge.fill", AppTheme.tileKey, "\(s.appLaunches.values.reduce(0, +))", "launches")
+            }
+            Spacer()
+            HStack(spacing: 12) {
+                Label("VPN", systemImage: s.onVPN == true ? "shield.fill" : "shield")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(AppTheme.tileNetwork)
+                if let ssid = s.wifiSSID, !ssid.isEmpty {
+                    Label(ssid, systemImage: "wifi")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+        }
+        .cardStyle()
+    }
+
+    private func mediaCard(_ s: TodayStats) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("MEDIA", "Playback · Now Playing")
+            if let np = s.nowPlaying, np.isPlaying {
+                HStack(spacing: 8) {
+                    Image(systemName: "music.note").foregroundStyle(AppTheme.tileMedia)
+                    Text(np.title ?? np.appName ?? "Playing")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white).lineLimit(1)
+                }
+                if let artist = np.artist, !artist.isEmpty {
+                    Text("\(artist) · \(np.appName ?? "playing")")
+                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
+                }
+            } else if !s.mediaSeconds.isEmpty {
+                Text("No active playback").font(.system(size: 12)).foregroundStyle(.white.opacity(0.4))
+            } else {
+                Text("No media activity yet").font(.system(size: 12)).foregroundStyle(.white.opacity(0.4))
+            }
+            let top = s.mediaSeconds.sorted { $0.value > $1.value }.prefix(3)
+            if !top.isEmpty {
+                ForEach(Array(top), id: \.key) { app, secs in
+                    HStack(spacing: 8) {
+                        Text(String(app.prefix(18))).font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                        Spacer()
+                        Text("\(Int(secs / 60))m").font(.system(size: 12, design: .rounded))
+                            .foregroundStyle(AppTheme.tileMedia)
+                    }
+                }
+            }
+            Spacer()
+        }
+        .cardStyle()
+    }
+
+    private func clipboardCard(_ s: TodayStats, series: [ClipboardPoint]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("CLIPBOARD", "Copy/paste counts · metadata only")
+            Label("\(s.clipboardCopies)", systemImage: "doc.on.clipboard")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+            if series.contains(where: { $0.copies > 0 }) {
+                Chart(series) { p in
+                    BarMark(x: .value("Hour", p.hour), y: .value("Copies", p.copies))
+                        .foregroundStyle(AppTheme.tileMedia.opacity(0.85))
+                        .cornerRadius(2)
+                }
+                .chartXAxis(.hidden)
+                .frame(height: 42)
+            } else {
+                Text("no copy events yet").font(.system(size: 11)).foregroundStyle(.white.opacity(0.4))
+            }
+            Spacer()
+        }
+        .cardStyle()
+    }
+
+    private func mailCard(_ s: TodayStats) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("MAIL", "Inbox activity · counts only")
+            if s.mailUnread != nil {
+                HStack(spacing: 18) {
+                    contextStat("envelope.badge", AppTheme.tileMail, "\(s.mailUnread ?? 0)", "unread")
+                    contextStat("arrow.down.circle", AppTheme.tileMail, "\(s.mailReceivedToday ?? 0)", "received")
+                    contextStat("arrow.up.circle", AppTheme.tileMail, "\(s.mailSentToday ?? 0)", "sent")
+                }
+                if let senders = s.mailTopSenders, !senders.isEmpty {
+                    Text("Top senders: \(senders.prefix(3).joined(separator: ", "))")
+                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
+                        .lineLimit(1)
+                }
+            } else {
+                Text("No Mail data yet").font(.system(size: 12)).foregroundStyle(.white.opacity(0.4))
+            }
+            Spacer()
+        }
+        .cardStyle()
+    }
+
+    private func contextStat(_ icon: String, _ tint: Color, _ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(value, systemImage: icon)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(tint)
+            Text(label).font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func hourlyClipboard(_ events: [TrackerEvent]) -> [ClipboardPoint] {
+        var hours = Array(repeating: 0, count: 24)
+        let cal = Calendar.current
+        for e in events {
+            if case .clipboardMetric(let p) = e.payload {
+                let h = cal.component(.hour, from: e.ts)
+                hours[h] += p.copiesInInterval
+            }
+        }
+        return hours.enumerated().map { ClipboardPoint(hour: $0.offset, copies: $0.element) }
+    }
+
+    /// Live meeting status from the most recent camera/mic sample (≤ 2.5 min old).
+    private func liveMeeting(_ events: [TrackerEvent]) -> (active: Bool, app: String?) {
+        let meetingApps: Set<String> = ["zoom", "teams", "meet", "slack", "facetime", "webex", "discord", "huddle"]
+        var newest: (ts: Date, p: CameraMicPayload)?
+        for e in events {
+            if case .cameraMicState(let p) = e.payload, newest == nil || e.ts > newest!.ts {
+                newest = (e.ts, p)
+            }
+        }
+        guard let newest, Date().timeIntervalSince(newest.ts) < 150 else { return (false, nil) }
+        var isMeeting = newest.p.cameraActive
+        if newest.p.microphoneActive, let app = newest.p.frontmostApp {
+            isMeeting = isMeeting || meetingApps.contains { app.lowercased().contains($0) }
+        }
+        return (isMeeting, newest.p.frontmostApp)
+    }
+
+    @ViewBuilder
+    private func meetingIndicator(_ events: [TrackerEvent], stats s: TodayStats) -> some View {
+        let live = liveMeeting(events)
+        if live.active {
+            HStack(spacing: 10) {
+                Image(systemName: "video.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(AppTheme.tileMedia)
+                Text("In a meeting\(live.app.map { " · \($0)" } ?? "")")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                Spacer()
+                Text("LIVE").font(.system(size: 10, weight: .heavy)).tracking(1.5)
+                    .foregroundStyle(.white).padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(Capsule().fill(.red.opacity(0.75)))
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.tileMedia.opacity(0.12)))
+        } else if s.meetingMinutes >= 3 {
+            HStack(spacing: 10) {
+                Image(systemName: "mic.circle.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(AppTheme.tileMedia)
+                Text("\(Int(s.meetingMinutes))m on calls today")
+                    .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.9))
+                Spacer()
+                if let focus = s.focusActive {
+                    Text(focus ? "Focus on" : "Focus off").font(.system(size: 11))
+                        .foregroundStyle(AppTheme.tileMoon)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.tileMedia.opacity(0.10)))
+        }
+    }
+
     // MARK: Period (#1)
     func periodSection(daysBack: Int, title: String) -> some View {
         let points = HistoryLoader.dayPoints(daysBack: daysBack, today: appState.stats)
@@ -348,6 +543,7 @@ extension DashboardView {
             }
             if !agg.categories.isEmpty { categoriesCard(agg) }
             if !agg.apps.isEmpty { appsCard(agg) }
+            contextSection(agg, events: periodEvents)
             insightsCard(agg)
         }
     }
@@ -492,6 +688,10 @@ enum AppTheme {
     static let tileClick = Color(red: 1.0, green: 0.55, blue: 0.42)
     static let tileCursor = Color(red: 0.70, green: 1.0, blue: 0.60)
     static let tileScroll = Color(red: 0.92, green: 0.68, blue: 1.0)
+    static let tileMedia = Color(red: 0.39, green: 0.90, blue: 0.75)   // teal
+    static let tileNetwork = Color(red: 0.48, green: 0.87, blue: 0.95) // sky
+    static let tileMail = Color(red: 1.0, green: 0.82, blue: 0.40)     // amber
+    static let tileMoon = Color(red: 0.78, green: 0.49, blue: 1.0)     // violet
     static let batteryGreen = Color(red: 0.35, green: 0.85, blue: 0.55)
     static let sitesAccent = Color(red: 1.0, green: 0.80, blue: 0.40)
 }

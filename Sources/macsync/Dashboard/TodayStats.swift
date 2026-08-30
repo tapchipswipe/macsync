@@ -46,10 +46,27 @@ struct TodayStats {
     var zombieSeconds = 0.0
     var insights: [String] = []
     var anomaly: String?
+    // v0.4.0 context pack
+    var meetingSeconds = 0.0                // camera/mic-in-use ∩ meeting heuristics
+    var mediaSeconds: [String: TimeInterval] = [:]  // playback minutes by app
+    var clipboardCopies = 0
+    var mailUnread: Int?
+    var mailReceivedToday: Int?
+    var mailSentToday: Int?
+    var mailTopSenders: [String]?
+    var screenLockCount = 0
+    var wakeCount = 0
+    var appLaunches: [String: Int] = [:]    // app launch frequency
+    var wifiSSID: String?
+    var onVPN: Bool?
+    var focusActive: Bool?
+    var nowPlaying: NowPlayingPayload?      // latest track observed
 
     var activeMinutes: Double { activeSeconds / 60.0 }
     var activeHours: Double { activeSeconds / 3600.0 }
+    var meetingMinutes: Double { meetingSeconds / 60.0 }
     var topInsight: String? { anomaly ?? insights.first }
+    var topMediaApp: String? { mediaSeconds.max { $0.value < $1.value }?.key }
 
     /// Focus score (#1): 0–100 blend of active time vs. an 8h goal (50%),
     /// deep-work streaks — focus sessions ≥ 25 min (30%), and low zombie-scroll
@@ -94,6 +111,9 @@ enum TodayAggregator {
         var inputMinutes = Set<Int>()
         var batterySteps: [BatterySample] = []
         var pageCounts: [String: Int] = [:]
+        var cameraStates: [(time: Date, cam: Bool)] = []
+        var micStates: [(time: Date, mic: Bool)] = []
+        var playStates: [(time: Date, app: String?, playing: Bool)] = []
         let cal = Calendar.current
 
         for e in events {
@@ -128,10 +148,87 @@ enum TodayAggregator {
                 if p.success, let title = p.tabTitle, !title.isEmpty {
                     pageCounts[title, default: 0] += 1
                 }
+            // ── v0.4.0 context pack ──
+            case .sessionEvent(let p):
+                switch p.event {
+                case .screenLocked: s.screenLockCount += 1
+                case .systemWake: s.wakeCount += 1
+                default: break
+                }
+            case .cameraMicState(let p):
+                cameraStates.append((p.observedAt, p.cameraActive))
+                micStates.append((p.observedAt, p.microphoneActive))
+            case .nowPlaying(let p):
+                s.nowPlaying = p
+                playStates.append((p.observedAt, p.appName, p.isPlaying))
+            case .networkContext(let p):
+                s.wifiSSID = p.ssid
+                s.onVPN = p.onVPN
+            case .clipboardMetric(let p):
+                s.clipboardCopies += p.copiesInInterval
+            case .focusModeState(let p):
+                s.focusActive = p.focusActive
+            case .appLifecycle(let p):
+                if p.event == .launched { s.appLaunches[p.appName, default: 0] += 1 }
+            case .mailStats(let p):
+                if p.success {
+                    s.mailUnread = p.unreadCount
+                    s.mailReceivedToday = p.receivedToday
+                    s.mailSentToday = p.sentToday
+                    if let senders = p.topSenders { s.mailTopSenders = senders }
+                }
             default:
                 break
             }
         }
+
+        // ── Meeting inference ──
+        // Each cameraMic sample carries (cam, mic, frontmostApp) at ~30s cadence.
+        // A sample counts as "meeting" when the camera is on, or the mic is on
+        // while a known meeting/call app was frontmost. Consecutive meeting
+        // samples are latched into intervals (gap tolerance = 2.5x poll interval).
+        let meetingApps: Set<String> = ["zoom", "teams", "meet", "slack", "facetime", "webex", "discord", "huddle"]
+        var isMeetingSample = [(time: Date, meeting: Bool)]()
+        for e in events {
+            if case .cameraMicState(let p) = e.payload {
+                var meeting = p.cameraActive
+                if p.microphoneActive, let app = p.frontmostApp {
+                    meeting = meeting || meetingApps.contains { app.lowercased().contains($0) }
+                }
+                isMeetingSample.append((p.observedAt, meeting))
+            }
+        }
+        if !isMeetingSample.isEmpty {
+            var meetingStart = Date?.none
+            var prev: Date = isMeetingSample[0].time
+            let maxGap: TimeInterval = 75   // bridge short poll hiccups
+            for smp in isMeetingSample {
+                if smp.meeting {
+                    if meetingStart == nil { meetingStart = smp.time }
+                } else {
+                    if meetingStart != nil, smp.time.timeIntervalSince(prev) <= maxGap {
+                        // still same interval; contiguous non-meeting gap too short
+                    } else if let ms = meetingStart {
+                        s.meetingSeconds += smp.time.timeIntervalSince(ms)
+                        meetingStart = nil
+                    }
+                }
+                prev = smp.time
+            }
+            if let ms = meetingStart, let last = isMeetingSample.last {
+                s.meetingSeconds += last.time.timeIntervalSince(ms)
+            }
+        }
+
+        // ── Media playback seconds by app ──
+        // NowPlaying events fire on track change/stop; each playing sample owns
+        // the interval to the next sample.
+        for (i, st) in playStates.enumerated() {
+            guard st.playing, let app = st.app, !app.isEmpty else { continue }
+            let end = i + 1 < playStates.count ? playStates[i + 1].time : st.time.addingTimeInterval(60)
+            s.mediaSeconds[app, default: 0] += max(0, end.timeIntervalSince(st.time))
+        }
+
 
         // Zombie-scroll (#5): focus-covered minutes with zero input.
         var focusMinutes = Set<Int>()

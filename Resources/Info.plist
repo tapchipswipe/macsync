@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.3</string>
+	<string>0.4.0</string>
 	<key>CFBundleVersion</key>
-	<string>4</string>
+	<string>5</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
@@ -32,5 +32,7 @@
 	<string>macsync records periodic location pings so your daily lifelog includes where you were working.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>macsync records periodic location pings so your daily lifelog includes where you were working.</string>
+	<key>NSFocusStatusUsageDescription</key>
+	<string>macsync reads your Focus status (Do Not Disturb / Work / Personal) so your daily lifelog can show when you were in a Focus state. Only the on/off state is recorded, never the reasons or apps.</string>
 </dict>
 </plist>

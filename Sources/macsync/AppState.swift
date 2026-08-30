@@ -15,6 +15,14 @@ final class AppState: ObservableObject {
     private let browserTracker = BrowserTracker()
     private let hardwareMonitor = HardwareMonitor()
     private let idleTracker = IdleTracker()
+    private let sessionCollector = SessionCollector()
+    private let cameraMicCollector = CameraMicCollector()
+    private let mediaCollector = MediaCollector()
+    private let networkContextCollector = NetworkContextCollector()
+    private let clipboardCollector = ClipboardCollector()
+    private let focusModeCollector = FocusModeCollector()
+    private let appLifecycleCollector = AppLifecycleCollector()
+    private let mailCollector = MailCollector()
     private let syncEngine = iCloudSync()
     private(set) lazy var scheduler = SyncScheduler(syncEngine: syncEngine)
     let updater = UpdateChecker.shared
@@ -89,6 +97,14 @@ final class AppState: ObservableObject {
         browserTracker.start()
         hardwareMonitor.start()
         idleTracker.start()
+        sessionCollector.start()
+        cameraMicCollector.start()
+        mediaCollector.start()
+        networkContextCollector.start()
+        clipboardCollector.start()
+        focusModeCollector.start()
+        appLifecycleCollector.start()
+        mailCollector.start()
         locationTracker.start()
         isTracking = true
     }
@@ -100,6 +116,15 @@ final class AppState: ObservableObject {
         browserTracker.stop()
         hardwareMonitor.stop()
         idleTracker.stop()
+        sessionCollector.stop()
+        cameraMicCollector.stop()
+        mediaCollector.stop()
+        networkContextCollector.stop()
+        clipboardCollector.stop()
+        focusModeCollector.stop()
+        appLifecycleCollector.stop()
+        mailCollector.stop()
+        locationTracker.stop()
         isTracking = false
     }
 

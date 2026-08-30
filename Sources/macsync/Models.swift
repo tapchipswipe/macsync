@@ -16,6 +16,15 @@ struct TrackerEvent: Codable {
         case idleSession
         case locationPing
         case syncResult
+        // v0.4.0 context pack
+        case sessionEvent
+        case cameraMicState
+        case nowPlaying
+        case networkContext
+        case clipboardMetric
+        case focusModeState
+        case appLifecycle
+        case mailStats
     }
 
     enum Payload: Codable {
@@ -27,16 +36,28 @@ struct TrackerEvent: Codable {
         case idleSession(IdleSessionPayload)
         case locationPing(LocationPingPayload)
         case syncResult(SyncResultPayload)
+        case sessionEvent(SessionEventPayload)
+        case cameraMicState(CameraMicPayload)
+        case nowPlaying(NowPlayingPayload)
+        case networkContext(NetworkContextPayload)
+        case clipboardMetric(ClipboardMetricPayload)
+        case focusModeState(FocusModePayload)
+        case appLifecycle(AppLifecyclePayload)
+        case mailStats(MailStatsPayload)
 
         private enum CodingKeys: String, CodingKey {
             case type
             case appFocus, windowFocus, inputMetrics, browserActivity
             case hardwareStatus, idleSession, locationPing, syncResult
+            case sessionEvent, cameraMicState, nowPlaying, networkContext
+            case clipboardMetric, focusModeState, appLifecycle, mailStats
         }
 
         private enum PayloadType: String, Codable {
             case appFocus, windowFocus, inputMetrics, browserActivity
             case hardwareStatus, idleSession, locationPing, syncResult
+            case sessionEvent, cameraMicState, nowPlaying, networkContext
+            case clipboardMetric, focusModeState, appLifecycle, mailStats
         }
 
         init(from decoder: Decoder) throws {
@@ -51,6 +72,14 @@ struct TrackerEvent: Codable {
             case .idleSession:     self = .idleSession(try c.decode(IdleSessionPayload.self, forKey: .idleSession))
             case .locationPing:    self = .locationPing(try c.decode(LocationPingPayload.self, forKey: .locationPing))
             case .syncResult:      self = .syncResult(try c.decode(SyncResultPayload.self, forKey: .syncResult))
+            case .sessionEvent:    self = .sessionEvent(try c.decode(SessionEventPayload.self, forKey: .sessionEvent))
+            case .cameraMicState:  self = .cameraMicState(try c.decode(CameraMicPayload.self, forKey: .cameraMicState))
+            case .nowPlaying:      self = .nowPlaying(try c.decode(NowPlayingPayload.self, forKey: .nowPlaying))
+            case .networkContext:  self = .networkContext(try c.decode(NetworkContextPayload.self, forKey: .networkContext))
+            case .clipboardMetric: self = .clipboardMetric(try c.decode(ClipboardMetricPayload.self, forKey: .clipboardMetric))
+            case .focusModeState:  self = .focusModeState(try c.decode(FocusModePayload.self, forKey: .focusModeState))
+            case .appLifecycle:    self = .appLifecycle(try c.decode(AppLifecyclePayload.self, forKey: .appLifecycle))
+            case .mailStats:       self = .mailStats(try c.decode(MailStatsPayload.self, forKey: .mailStats))
             }
         }
 
@@ -65,6 +94,14 @@ struct TrackerEvent: Codable {
             case .idleSession(let p):     try c.encode(PayloadType.idleSession, forKey: .type);     try c.encode(p, forKey: .idleSession)
             case .locationPing(let p):    try c.encode(PayloadType.locationPing, forKey: .type);    try c.encode(p, forKey: .locationPing)
             case .syncResult(let p):      try c.encode(PayloadType.syncResult, forKey: .type);      try c.encode(p, forKey: .syncResult)
+            case .sessionEvent(let p):    try c.encode(PayloadType.sessionEvent, forKey: .type);    try c.encode(p, forKey: .sessionEvent)
+            case .cameraMicState(let p):  try c.encode(PayloadType.cameraMicState, forKey: .type);  try c.encode(p, forKey: .cameraMicState)
+            case .nowPlaying(let p):      try c.encode(PayloadType.nowPlaying, forKey: .type);      try c.encode(p, forKey: .nowPlaying)
+            case .networkContext(let p):  try c.encode(PayloadType.networkContext, forKey: .type);  try c.encode(p, forKey: .networkContext)
+            case .clipboardMetric(let p): try c.encode(PayloadType.clipboardMetric, forKey: .type); try c.encode(p, forKey: .clipboardMetric)
+            case .focusModeState(let p):  try c.encode(PayloadType.focusModeState, forKey: .type);  try c.encode(p, forKey: .focusModeState)
+            case .appLifecycle(let p):    try c.encode(PayloadType.appLifecycle, forKey: .type);    try c.encode(p, forKey: .appLifecycle)
+            case .mailStats(let p):       try c.encode(PayloadType.mailStats, forKey: .type);       try c.encode(p, forKey: .mailStats)
             }
         }
     }
@@ -147,6 +184,85 @@ struct SyncResultPayload: Codable {
     let destination: String     // "iCloud" | "LocalFallback" | "LocalExports"
     let filePath: String?
     let eventCount: Int
+    let success: Bool
+    let errorMessage: String?
+}
+
+// MARK: - v0.4.0 Context Pack payloads
+
+/// Screen lock/unlock, system sleep/wake, lid open/close.
+struct SessionEventPayload: Codable {
+    enum SessionEventType: String, Codable {
+        case screenLocked, screenUnlocked
+        case systemSleep, systemWake
+        case lidClosed, lidOpened
+    }
+    let observedAt: Date
+    let event: SessionEventType
+}
+
+/// Camera / microphone in-use state. Metadata only: which device class is live,
+/// never any audio/video content.
+struct CameraMicPayload: Codable {
+    let observedAt: Date
+    let cameraActive: Bool
+    let microphoneActive: Bool
+    /// Frontmost app at observation time — heuristic for "who's in the call".
+    let frontmostApp: String?
+}
+
+/// Now Playing metadata via MediaRemote (read-only, private framework).
+struct NowPlayingPayload: Codable {
+    let observedAt: Date
+    let appName: String?        // e.g. "Spotify", "Music"
+    let title: String?
+    let artist: String?
+    let isPlaying: Bool
+}
+
+/// Wi-Fi context. BSSID is stored hashed (SHA-256) so the network is
+/// identifiable day-to-day but not mappable to a physical AP database.
+struct NetworkContextPayload: Codable {
+    let observedAt: Date
+    let ssid: String?
+    let bssidHash: String?
+    let rssi: Int?              // signal strength dBm
+    let onVPN: Bool
+}
+
+/// Clipboard METADATA ONLY — change count deltas, UTI types, byte sizes.
+/// The copied content is never read or stored.
+struct ClipboardMetricPayload: Codable {
+    let observedAt: Date
+    let copiesInInterval: Int       // changeCount delta since last poll
+    let contentTypes: [String]      // e.g. ["public.utf8-plain-text"], current item only
+    let byteSize: Int?              // size of current item, nil if unknown
+}
+
+/// macOS Focus (Do Not Disturb etc.) state.
+struct FocusModePayload: Codable {
+    let observedAt: Date
+    let focusActive: Bool
+    let authorized: Bool        // false if Intents Focus permission not granted
+}
+
+/// App launched / quit lifecycle events.
+struct AppLifecyclePayload: Codable {
+    enum LifecycleEvent: String, Codable { case launched, terminated }
+    let observedAt: Date
+    let appName: String
+    let bundleID: String?
+    let event: LifecycleEvent
+}
+
+/// Mail.app statistics via AppleScript. Counts by default; sender names only
+/// when the `macsync.mailSenderNames` user default is enabled.
+struct MailStatsPayload: Codable {
+    let observedAt: Date
+    let unreadCount: Int
+    let receivedToday: Int
+    let sentToday: Int
+    let topSenders: [String]?   // nil unless sender-name logging is enabled
     let success: Bool
     let errorMessage: String?
 }

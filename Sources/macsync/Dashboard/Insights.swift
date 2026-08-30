@@ -154,6 +154,33 @@ enum InsightsBuilder {
             lines.append("You viewed \(s.pages.count) distinct pages.")
         }
         lines.append("\(s.keystrokes) keystrokes · \(s.clicks) clicks · \(Self.distance(s.cursorDistance)) cursor travel.")
+        // ── v0.4.0 context pack insights ──
+        if s.meetingMinutes >= 5 {
+            lines.append("\(Int(s.meetingMinutes))m on calls (camera/mic active).")
+        }
+        if let media = s.topMediaApp, let mins = s.mediaSeconds[media], mins >= 300 {
+            lines.append("\(Int(mins / 60))m of playback in \(media).")
+        }
+        if s.clipboardCopies > 0 {
+            lines.append("\(s.clipboardCopies) copy/paste actions — \(s.clipboardCopies > 30 ? "heavy shuttling between apps." : "steady clipboard use.")")
+        }
+        if let unread = s.mailUnread {
+            var mailLine = "Inbox: \(unread) unread"
+            if let recv = s.mailReceivedToday { mailLine += ", \(recv) received today" }
+            if let sent = s.mailSentToday { mailLine += ", \(sent) sent" }
+            lines.append(mailLine + ".")
+        }
+        if s.screenLockCount > 0 {
+            lines.append("You locked the screen \(s.screenLockCount) time\(s.screenLockCount == 1 ? "" : "s") today.")
+        }
+        if let ssid = s.wifiSSID, !ssid.isEmpty {
+            var net = "On Wi-Fi network \(ssid)"
+            if let vpn = s.onVPN, vpn { net += " via VPN" }
+            lines.append(net + ".")
+        }
+        if let f = s.focusActive {
+            lines.append(f ? "Focus mode is on — you were in a Focus state when last checked." : "Focus mode was off at your last check.")
+        }
         return lines
     }
 

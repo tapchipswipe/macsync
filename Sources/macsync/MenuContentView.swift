@@ -138,6 +138,27 @@ struct MenuContentView: View {
                 .padding(9)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.orange.opacity(0.10)))
             }
+            // v0.4.0 LIVE CONTEXT strip
+            if hasLiveContext {
+                sectionLabel("NOW")
+                VStack(spacing: 8) {
+                    if appState.stats.meetingMinutes > 0 {
+                        contextRow("video.fill", AppTheme.accent, "In call", "\(Int(appState.stats.meetingMinutes))m of calls")
+                    }
+                    if let np = appState.stats.nowPlaying, np.isPlaying, let title = np.title {
+                        contextRow("music.note", AppTheme.tileMedia, np.appName ?? "Playing", title)
+                    }
+                    if let ssid = appState.stats.wifiSSID, !ssid.isEmpty {
+                        contextRow("wifi", AppTheme.tileNetwork, "Network", ssid + (appState.stats.onVPN == true ? " · VPN" : ""))
+                    }
+                    if let unread = appState.stats.mailUnread {
+                        contextRow("envelope", AppTheme.tileMail, "Inbox", "\(unread) unread · \(appState.stats.mailReceivedToday ?? 0) recv")
+                    }
+                    if let f = appState.stats.focusActive {
+                        contextRow("moon.fill", AppTheme.tileMoon, "Focus", f ? "Active" : "Off")
+                    }
+                }
+            }
             Button { openWindow(id: SceneID.dashboard) } label: {
                 Label("Open Dashboard", systemImage: "chart.xyaxis.line")
                     .font(.system(size: 12, weight: .semibold))
@@ -353,6 +374,11 @@ struct MenuContentView: View {
                 Toggle("Zip daily archives", isOn: $zipArchives)
                     .toggleStyle(.switch).controlSize(.mini).font(.system(size: 12))
                 Toggle("Encrypt archives (AES-256)", isOn: $encryptArchives)
+                Toggle("Log Mail sender names", isOn: Binding(
+                    get: { UserDefaults.standard.bool(forKey: "macsync.mailSenderNames") },
+                    set: { UserDefaults.standard.set($0, forKey: "macsync.mailSenderNames") }
+                ))
+                .toggleStyle(.switch).controlSize(.mini).font(.system(size: 12))
                     .toggleStyle(.switch).controlSize(.mini).font(.system(size: 12))
                 Toggle("Launch at Login", isOn: Binding(
                     get: { appState.launchAtLogin },
@@ -418,6 +444,33 @@ struct MenuContentView: View {
     }
 
     // MARK: - Shared pieces
+
+    private var hasLiveContext: Bool {
+        let st = appState.stats
+        return st.meetingMinutes > 0
+            || (st.nowPlaying?.isPlaying == true && st.nowPlaying?.title != nil)
+            || !(st.wifiSSID ?? "").isEmpty
+            || st.mailUnread != nil
+            || st.focusActive != nil
+    }
+
+    private func contextRow(_ icon: String, _ tint: Color, _ label: String, _ value: String) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(tint.opacity(0.14)))
+            Text(label).font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.8))
+            Spacer()
+            Text(value)
+                .font(.system(size: 10.5, design: .rounded))
+                .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(AppTheme.card))
+    }
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
