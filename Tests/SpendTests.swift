@@ -4,7 +4,7 @@ enum ReceiptParserTests {
     static func run() {
         let d = Date(timeIntervalSince1970: 1_700_000_000)
 
-        // ── Declined / failed payments are NEVER receipts (v0.5.1) ──
+        // ── Declined / failed payments are NEVER receipts ──
         expect(ReceiptParser.looksLikeFailedPayment(
             subject: "Transaction decline notification", sender: "Team Privacy <support@privacy.com>"),
             "Privacy.com decline subject → failed payment")
@@ -20,6 +20,88 @@ enum ReceiptParserTests {
         expect(!ReceiptParser.looksLikeReceipt(
             subject: "$49.99 payment to Planner5D, UAB was unsuccessful again", sender: "x <failed-payments@stripe.com>"),
             "unsuccessful payment excluded from receipts")
+
+        // ── Brokerage / Investment / Trading rejections ──
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Your trade has been executed", sender: "Public <support@public.com>"),
+            "Public trade subject excluded in pass A")
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Order filled: Buy 10 AAPL", sender: "Robinhood <support@robinhood.com>"),
+            "Robinhood order filled excluded in pass A")
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Your recurring crypto buy of $50.00 was completed", sender: "Coinbase <no-reply@coinbase.com>"),
+            "Coinbase crypto buy excluded in pass A")
+
+        let publicTrade = ReceiptParser.parse(
+            subject: "Your trade has been executed",
+            sender: "Public <no-reply@geopod-ismtpd-37>",
+            body: "Your market order to buy $37.67 of VOO has been executed.\nShares: 0.072\nPrice: $520.12",
+            sentDate: d)
+        expect(publicTrade.amount == nil, "Public.com trade parsed as non-purchase (amount nil)")
+
+        let robinhood = ReceiptParser.parse(
+            subject: "Trade confirmation",
+            sender: "Robinhood Financial <orders@robinhood.com>",
+            body: "You bought 5 shares of NVDA for $650.00.\nTotal: $650.00",
+            sentDate: d)
+        expect(robinhood.amount == nil, "Robinhood trade confirmation rejected")
+
+        // ── Travel / Airline: Flight updates & SkyMiles vs Real Ticket Receipts ──
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Time to check in for your flight DL 1787 to Atlanta", sender: "Delta Air Lines <ticketreceipt@delta.com>"),
+            "Delta check-in alert excluded in pass A")
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Your SkyMiles summary: 1,787 Medallion miles earned", sender: "Delta Air Lines <news@delta.com>"),
+            "Delta SkyMiles points statement excluded in pass A")
+
+        let deltaCheckIn = ReceiptParser.parse(
+            subject: "Flight DL 1787 update: On time",
+            sender: "Delta Air Lines <notifications@delta.com>",
+            body: "Your upcoming flight DL 1787 to Atlanta is on schedule.\nUpgrade to First Class from $1,787.00.",
+            sentDate: d)
+        expect(deltaCheckIn.amount == nil, "Delta flight update / upgrade promo rejected")
+
+        let deltaRealReceipt = ReceiptParser.parse(
+            subject: "Your Flight Receipt - Passenger Receipt and Itinerary",
+            sender: "Delta Air Lines <ticketreceipt@delta.com>",
+            body: "Thank you for choosing Delta.\nTicket Number: 0062384910293\nTotal Amount Charged: $340.50\nPayment Method: Visa ending in 4417",
+            sentDate: d)
+        expect(deltaRealReceipt.amount == Decimal(string: "340.50"), "Real Delta ticket receipt parsed")
+        expect(deltaRealReceipt.merchant == "Delta Air Lines", "Delta merchant recognized")
+        expect(deltaRealReceipt.cardLast4 == "4417", "Delta receipt card last4")
+        expect(!deltaRealReceipt.needsReview, "Delta real receipt high confidence")
+
+        // ── Cloud / SaaS Budget Alerts vs Real Invoices ──
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Google Cloud Budget Alert: 100% of your $500 budget reached", sender: "Google Cloud Billing <billing@google.com>"),
+            "Google Cloud budget alert excluded in pass A")
+
+        let googleBudget = ReceiptParser.parse(
+            subject: "Google Cloud billing alert",
+            sender: "Google <google-cloud-billing@google.com>",
+            body: "Your Cloud billing account has exceeded 100% of budget.\nEstimated charges: $541.00 for August.",
+            sentDate: d)
+        expect(googleBudget.amount == nil, "Google Cloud budget alert rejected")
+
+        let googleRealInvoice = ReceiptParser.parse(
+            subject: "Your Google Workspace invoice is ready",
+            sender: "Google Workspace <payments-noreply@google.com>",
+            body: "Invoice Number: GOOG-123456\nTotal paid: $14.40\nCharged to Mastercard ending in 9012",
+            sentDate: d)
+        expect(googleRealInvoice.amount == Decimal(string: "14.40"), "Real Google invoice parsed")
+        expect(googleRealInvoice.merchant == "Google", "Google merchant recognized")
+
+        // ── Bank Transfers / Credit Card Payments ──
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Your credit card payment of $1,200.00 has posted", sender: "Chase <no-reply@chase.com>"),
+            "Credit card bill payment excluded in pass A")
+
+        let ccPayment = ReceiptParser.parse(
+            subject: "Payment received - thank you",
+            sender: "Chase Card Services <notifications@chase.com>",
+            body: "We received your payment of $1,200.00 to your card ending in 5543 on Aug 28, 2026.",
+            sentDate: d)
+        expect(ccPayment.amount == nil, "Credit card debt payment rejected as non-purchase")
 
         // ── Shopify billing: "bill for {X}" ──
         let shopify = ReceiptParser.parse(
@@ -80,7 +162,7 @@ enum ReceiptParserTests {
             sender: "noreply@unknownshoppe.example",
             body: "You paid $19.99",
             sentDate: d)
-        expect(skimpy.amount == Decimal(string: "19.99"), "bare $ amount parsed")
+        expect(skimpy.amount == Decimal(string: "19.99"), "bare $ amount parsed with you paid context")
         expect(skimpy.merchant == nil, "unknown sender → no merchant guess")
         expect(skimpy.needsReview, "low confidence flagged for review")
 
@@ -106,7 +188,7 @@ enum ReceiptParserTests {
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "MMM d, yyyy"
         expect(dated.transactionDate == f.date(from: "Aug 12, 2026"), "purchase date extracted from body")
 
-        // ── Non-transaction rejections (v0.5.1) ──
+        // ── Non-transaction rejections ──
         // $0 amount is never a real purchase
         let zeroAmount = ReceiptParser.parse(
             subject: "Receipt", sender: "receipt@example.com",

@@ -69,6 +69,7 @@ final class AppState: ObservableObject {
 
     func applicationDidFinishLaunching() {
         DataStore.shared.pruneBuffers(olderThan: 30)
+        DataStore.shared.pruneInvalidReceipts()
         permissions.runOnboardingIfNeeded(locationTracker: locationTracker)
         startTracking()
         scheduler.start()

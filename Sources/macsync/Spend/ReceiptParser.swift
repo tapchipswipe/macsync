@@ -74,6 +74,49 @@ enum ReceiptParser {
         SenderRule(domain: "walgreens.com", merchant: "Walgreens", category: .health)
     ]
 
+    // MARK: - Brokerage / Investment / Banking Exclusion Lists
+
+    private static let brokerageDomains: [String] = [
+        "public.com", "geopod-ismtpd", "robinhood.com", "coinbase.com",
+        "fidelity.com", "schwab.com", "vanguard.com", "etrade.com",
+        "webull.com", "interactivebrokers.com", "kraken.com", "gemini.com",
+        "crypto.com", "binance.com", "acorns.com", "betterment.com",
+        "wealthfront.com", "m1finance.com", "empower.com", "sofi.com"
+    ]
+
+    private static let investmentKeywords: [String] = [
+        "trade", "trades", "traded", "trading", "shares", "share price",
+        "limit order", "market order", "stop order", "stop loss", "dividend",
+        "portfolio", "brokerage", "crypto", "cryptocurrency", "bitcoin", "ethereum",
+        "treasury bill", "t-bill", "yield payout", "order to buy", "order to sell",
+        "order filled", "order execution", "trade executed", "trade confirmation",
+        "your trade", "executed order", "deposit of $", "funds transferred",
+        "transfer of $", "withdrew", "withdrawal"
+    ]
+
+    private static let bankingTransferKeywords: [String] = [
+        "credit card payment", "payment received - thank you", "payment posted",
+        "transfer from checking", "transfer to savings", "ach transfer",
+        "wire transfer", "direct deposit", "autopay scheduled",
+        "monthly statement", "statement available", "account statement is ready",
+        "minimum payment due", "balance update"
+    ]
+
+    private static let travelNonPurchaseKeywords: [String] = [
+        "time to check in", "check in now", "check-in", "boarding pass",
+        "flight update", "gate change", "baggage update", "flight status",
+        "trip reminder", "upcoming trip", "skymiles", "mileageplus",
+        "rapid rewards", "frequent flyer", "miles earned", "qualifying miles",
+        "upgrade offer", "upgrade to", "fares starting at", "book now from",
+        "flight alert", "schedule change", "ecredit", "flight credit"
+    ]
+
+    private static let cloudBudgetKeywords: [String] = [
+        "budget alert", "budget reached", "% of budget", "spending limit",
+        "cost threshold", "usage summary", "billing alert", "estimated charges for",
+        "daily spend alert"
+    ]
+
     // MARK: - Enter / parse
 
     /// Cheap subject/sender heuristic used to shortlist messages before their
@@ -81,13 +124,75 @@ enum ReceiptParser {
     static func looksLikeReceipt(subject: String, sender: String) -> Bool {
         // Declined / failed payments are NOT purchases — never count them.
         if looksLikeFailedPayment(subject: subject, sender: sender) { return false }
+        // Investment, banking transfers, and non-purchase alerts are never receipts.
+        if looksLikeNonPurchase(subject: subject, sender: sender) { return false }
+
         let subj = subject.lowercased()
-        let subjectWords = ["receipt", "invoice", "payment", "your order", "order confirmation",
-                            "purchase", "statement", "charged", "paid", "shipment", "on the way",
-                            "delivered", "transaction", "subscription", "order", "bill",
-                            "confirmed", "your trade", "paid you"]
-        if subjectWords.contains(where: { subj.contains($0) }) { return true }
-        return senderRules.contains { sender.lowercased().contains($0.domain.lowercased()) }
+
+        // 1. Explicit purchase / invoice keywords in subject (highest confidence)
+        let receiptSubjectKeywords = [
+            "receipt", "invoice", "payment receipt", "your order", "order confirmation",
+            "purchase receipt", "e-receipt", "ereceipt", "ticket receipt", "flight receipt",
+            "booking confirmation", "you paid", "paid you", "tax invoice", "bill for",
+            "order #", "order placed", "order confirmed", "payment for order",
+            "payment confirmed"
+        ]
+        if receiptSubjectKeywords.contains(where: { subj.contains($0) }) {
+            return true
+        }
+
+        // 2. Known sender rules: require transactional subject and reject marketing/alerts
+        let senderLC = sender.lowercased()
+        if senderRules.contains(where: { senderLC.contains($0.domain.lowercased()) }) {
+            let nonTransactionSubjects = [
+                "update", "newsletter", "recap", "reminder", "check-in", "check in",
+                "boarding", "gate", "status", "statement", "alert", "security",
+                "password", "welcome", "survey", "review your", "how was", "offer",
+                "deal", "sale", "save", "miles", "points", "reward", "rewards",
+                "notification", "trade", "shares", "deposit", "transfer", "budget", "limit"
+            ]
+            if !nonTransactionSubjects.contains(where: { subj.contains($0) }) {
+                let transactionalSubjWords = [
+                    "order", "receipt", "invoice", "payment", "charged", "paid",
+                    "subscription renewal", "ticket", "booking", "shipment",
+                    "delivery", "delivered", "shipped", "bill"
+                ]
+                if transactionalSubjWords.contains(where: { subj.contains($0) }) {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    /// Checks if subject or sender belongs to an investment/brokerage platform,
+    /// bank transfer, or non-purchase alert.
+    static func looksLikeNonPurchase(subject: String, sender: String) -> Bool {
+        let senderLC = sender.lowercased()
+        let subjLC = subject.lowercased()
+
+        // Brokerage platform sender
+        if brokerageDomains.contains(where: { senderLC.contains($0) }) { return true }
+
+        // Investment / trading language in subject
+        if investmentKeywords.contains(where: { subjLC.contains($0) }) { return true }
+
+        // Bank transfer / CC payments / statements in subject
+        if bankingTransferKeywords.contains(where: { subjLC.contains($0) }) { return true }
+
+        // Travel non-receipts (check-in, flight updates, SkyMiles, upgrade promos)
+        if travelNonPurchaseKeywords.contains(where: { subjLC.contains($0) }) {
+            let travelReceiptPhrases = ["flight receipt", "ticket receipt", "eticket receipt", "e-ticket receipt", "passenger receipt", "flight booking confirmation", "your receipt and itinerary"]
+            if !travelReceiptPhrases.contains(where: { subjLC.contains($0) }) {
+                return true
+            }
+        }
+
+        // Cloud budget alerts in subject
+        if cloudBudgetKeywords.contains(where: { subjLC.contains($0) }) { return true }
+
+        return false
     }
 
     /// Declined / unsuccessful payments must never be counted as spending.
@@ -104,81 +209,102 @@ enum ReceiptParser {
     }
 
     /// Rejects messages that look receipt-like but are not real purchases:
-/// - Declined / failed charges (already checked in looksLikeFailedPayment but
-///   we also scan the body for cases the subject doesn't mention).
-/// - Zero-dollar totals (e.g. statement notices, account summaries).
-/// - Explicit "no charge" / "free" confirmations.
-/// - Non-transactional pseudo-card notifications (e.g. Flux/Team Privacy).
-static func shouldRejectNonTransaction(subject: String, sender: String, body: String, amount: Decimal?) -> Bool {
-    let text = (subject + "\n" + body).lowercased()
+    /// - Declined / failed charges
+    /// - Zero-dollar totals ($0.00 / free)
+    /// - Investment / trading / brokerage activities (Public, Robinhood, etc.)
+    /// - Bank transfers / Credit card bill payments
+    /// - Travel check-in / flight status / SkyMiles / upgrade promos
+    /// - Cloud / SaaS budget threshold alerts and monthly usage statements
+    /// - Marketing ESP promotional campaigns ("$X off", "save $X")
+    /// - Pseudo-card promotional notifications
+    static func shouldRejectNonTransaction(subject: String, sender: String, body: String, amount: Decimal?) -> Bool {
+        let text = (subject + "\n" + body).lowercased()
+        let senderLC = sender.lowercased()
+        let subjLC = subject.lowercased()
 
-    // 1. Declined language in body even if subject didn't carry it.
-    let declineWords = ["declined", "was declined", "payment failed", "unsuccessful payment",
-                        "could not be processed", "couldn't be processed", "fix your payment",
-                        "payment attempt failed", "charge failed", "authorization failed",
-                        "not authorized", "rejected by bank"]
-    if declineWords.contains(where: { text.contains($0) }) { return true }
+        // 1. Declined language in body even if subject didn't carry it.
+        let declineWords = ["declined", "was declined", "payment failed", "unsuccessful payment",
+                            "could not be processed", "couldn't be processed", "fix your payment",
+                            "payment attempt failed", "charge failed", "authorization failed",
+                            "not authorized", "rejected by bank"]
+        if declineWords.contains(where: { text.contains($0) }) { return true }
 
-    // 2. $0 total — never a real purchase.
-    if let amt = amount, amt == 0 { return true }
+        // 2. $0 total — never a real purchase.
+        if let amt = amount, amt == 0 { return true }
 
-    // 3. "No charge" / "free" confirmation (e.g. $0 trial, free order).
-    if text.contains("no charge") || text.contains("charged $0") { return true }
+        // 3. "No charge" / "free" confirmation (e.g. $0 trial, free order).
+        if text.contains("no charge") || text.contains("charged $0") || text.contains("total: $0.00") { return true }
 
-        // 4. Pseudo-card / promotional notifications that carry a card mask
-    //    but no actual purchase (Flux Team Privacy, etc.).
-    let senderLC = sender.lowercased()
-    let promoSenders = ["teamprivacy", "team@privacy", "noreply@privacy", "flux.ai"]
-    if promoSenders.contains(where: { senderLC.contains($0) }) { return true }
+        // 4. Brokerage / Investment platforms (Public, Robinhood, Coinbase, etc.)
+        if brokerageDomains.contains(where: { senderLC.contains($0) }) { return true }
+        if investmentKeywords.contains(where: { text.contains($0) }) { return true }
 
-    // 5. Transactional/marketing platforms that often carry dollar amounts
-    //    in notifications (statements, promo codes, balance updates) but
-    //    are not purchase confirmations.
-    let promoDomains = ["klaviyomail.com", "sender-sib.com", "broadridge.net",
-                        "amazonses.com", "sendgrid.net", "mailgun", "postmark"]
-    // Only reject when there's no strong purchase confirmation in the subject.
-    // (amazonses sends both real receipts and marketing; if the subject
-    //  contains "receipt" or "order", let it through.)
-    let subjLC = subject.lowercased()
-    if !subjLC.contains("receipt") && !subjLC.contains("order") && !subjLC.contains("invoice") {
-        if promoDomains.contains(where: { senderLC.contains($0) }) { return true }
+        // 5. Bank transfers / credit card bill payments
+        if bankingTransferKeywords.contains(where: { text.contains($0) }) { return true }
+
+        // 6. Travel non-purchases (flight status, check-in, SkyMiles, upgrade offers)
+        if travelNonPurchaseKeywords.contains(where: { text.contains($0) }) {
+            let travelReceiptPhrases = ["flight receipt", "ticket receipt", "eticket receipt", "e-ticket receipt", "passenger receipt", "flight booking confirmation", "your receipt and itinerary"]
+            if !travelReceiptPhrases.contains(where: { subjLC.contains($0) }) {
+                return true
+            }
+        }
+
+        // 7. Cloud / Tech budget threshold alerts
+        if cloudBudgetKeywords.contains(where: { text.contains($0) }) { return true }
+
+        // 8. Pseudo-card / promotional notifications (Flux Team Privacy, etc.)
+        let promoSenders = ["teamprivacy", "team@privacy", "noreply@privacy", "flux.ai"]
+        if promoSenders.contains(where: { senderLC.contains($0) }) { return true }
+
+        // 9. ESP marketing platforms (Klaviyo, Brevo, SendGrid, etc.)
+        let promoDomains = ["klaviyomail.com", "sender-sib.com", "broadridge.net",
+                            "amazonses.com", "sendgrid.net", "mailgun", "postmark", "list-manage.com"]
+        if promoDomains.contains(where: { senderLC.contains($0) }) {
+            if !subjLC.contains("receipt") && !subjLC.contains("order") && !subjLC.contains("invoice") {
+                return true
+            }
+        }
+
+        // 10. General notifications/recap/newsletter subjects
+        let nonPurchaseSubjects = ["notification", "reminder", "update", "your account",
+                                   "security alert", "password", "verification code",
+                                   "new sign-in", "login", "newsletter", "weekly recap"]
+        if nonPurchaseSubjects.contains(where: { subjLC.contains($0) }) && !subjLC.contains("receipt") && !subjLC.contains("invoice") && !subjLC.contains("order") {
+            return true
+        }
+
+        return false
     }
 
-    // 6. Subject lines that are clearly not purchases even if they
-    //    mention a dollar amount (notifications, updates, confirmations
-    //    of non-financial events).
-    let nonPurchaseSubjects = ["notification", "reminder", "update", "your account",
-                               "security alert", "password", "verification code",
-                               "new sign-in", "login", "newsletter", "weekly recap"]
-    if nonPurchaseSubjects.contains(where: { subjLC.contains($0) }) && !subjLC.contains("receipt") && !subjLC.contains("invoice") && !subjLC.contains("order") {
-        return true
-    }
-
-    return false
-}
-
-/// Parses one candidate receipt message. `sentDate` is the message date
+    /// Parses one candidate receipt message. `sentDate` is the message date
     /// (used when no explicit purchase date can be found in the body).
     static func parse(subject: String, sender: String, body: String, sentDate: Date) -> ParsedReceipt {
         let merchant = resolveMerchant(subject: subject, sender: sender)
-                var amount = firstAmount(in: body)
-        let labeled = hasLabeledTotal(in: body)
         let card = cardLast4(in: body.replacingOccurrences(of: "\n", with: " "))
         let date = purchaseDate(in: subject, body: body) ?? sentDate
 
-        var confidence = 0.35                              // baseline: weak guess
+        var amount = firstAmount(in: body, subject: subject, cardPresent: card != nil)
+        let labeled = hasLabeledTotal(in: body)
+
+        var confidence = 0.30                              // baseline
         if merchant != nil { confidence += 0.20 }
-                if amount != nil { confidence += 0.25 }
-        // Hard rejects (declined / non-transactions): zero out everything so
-        // the caller treats this as a non-receipt.
+        if labeled { confidence += 0.25 }
+        if card != nil { confidence += 0.15 }
+        if merchantWasKnown(sender) { confidence += 0.10 }
+
+        // If amount was found only through fallback (no labeled total, no card last4), penalize confidence
+        if !labeled && card == nil && amount != nil {
+            confidence -= 0.15
+        }
+
+        // Hard rejects (declined / non-transactions): zero out everything
         if shouldRejectNonTransaction(subject: subject, sender: sender, body: body, amount: amount) {
             confidence = 0
             amount = nil
         }
-        if labeled { confidence += 0.15 }
-        if card != nil { confidence += 0.15 }
-        if merchantWasKnown(sender) { confidence += 0.10 }
-        confidence = min(1.0, confidence)
+
+        confidence = max(0.0, min(1.0, confidence))
 
         return ParsedReceipt(
             merchant: merchant,
@@ -194,17 +320,46 @@ static func shouldRejectNonTransaction(subject: String, sender: String, body: St
     // MARK: - Amount
 
     /// Strongest-signal amount first: labeled totals beat bare "$x".
-    static func firstAmount(in text: String) -> Decimal? {
-        if let labeled = firstMatch(#"(?:total|amount due|charged|paid)[^0-9$€£]{0,25}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#, in: text),
-           let d = moneyDecimal(labeled) { return d }
-        return firstMoney(in: text)
+    /// Bare "$x" is only accepted if supported by card last-4 or an explicit receipt subject.
+    static func firstAmount(in text: String, subject: String = "", cardPresent: Bool = false) -> Decimal? {
+        // 1. Explicit labeled totals ("Total: $...", "Amount charged: $...", "Total paid: $...")
+        let labeledPatterns = [
+            #"(?:total\s+(?:amount|paid|charged|due)?|amount\s+(?:paid|charged|due)|grand\s+total|order\s+total|final\s+total|payment\s+amount|total\s+cost|total\s+fare|ticket\s+total|fare\s+total)[^0-9$€£]{0,25}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#,
+            #"(?:charged|billed|amount charged|paid)[^0-9$€£]{0,15}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#,
+            #"(?:you paid)[^0-9$€£]{0,25}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#
+        ]
+        for p in labeledPatterns {
+            if let m = firstMatch(p, in: text, group: 1), let d = moneyDecimal(m) {
+                return d
+            }
+        }
+
+        // 2. Fallback to bare money ONLY if context confirms it is a transaction
+        // (card last-4 present, or subject has explicit "receipt / order / invoice / you paid")
+        let subjLC = subject.lowercased()
+        let hasExplicitReceiptSubject = subjLC.contains("receipt") || subjLC.contains("order") ||
+                                       subjLC.contains("invoice") || subjLC.contains("you paid")
+
+        if cardPresent || hasExplicitReceiptSubject {
+            if let d = firstMoney(in: text) {
+                return d
+            }
+        }
+
+        return nil
     }
 
     static func hasLabeledTotal(in text: String) -> Bool {
-        firstMatch(#"(?:total|amount due)[^0-9$€£]{0,25}?[$€£]"#, in: text) != nil
+        let labeledPatterns = [
+            #"(?:total\s+(?:amount|paid|charged|due)?|amount\s+(?:paid|charged|due)|grand\s+total|order\s+total|final\s+total|payment\s+amount|total\s+cost|total\s+fare|ticket\s+total|fare\s+total)[^0-9$€£]{0,25}?[$€£]"#,
+            #"(?:charged|billed|amount charged|paid)[^0-9$€£]{0,15}?[$€£]"#,
+            #"(?:you paid)[^0-9$€£]{0,25}?[$€£]"#
+        ]
+        return labeledPatterns.contains { firstMatch($0, in: text) != nil }
     }
 
     /// First bare currency amount ("$42.95", "USD 42.95", "$ 1,234.56").
+    /// Rejects promotional/discount phrasings ("save $", "starting at $", "$... off").
     static func firstMoney(in text: String) -> Decimal? {
         let patterns = [
             #"[$€£]\s?([0-9][0-9,]*(?:\.[0-9]{1,2})?)"#,

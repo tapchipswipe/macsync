@@ -10,20 +10,14 @@ Repo: `github.com/tapchipswipe/macsync`. Local: `/Users/lucasdespot/macsync`.
 
 ## Key committed facts
 
-- **Version**: `0.5.0` in `Info.plist` (bump per release).
-- **History**: v0.1.0 initial build → v0.2.0 visual overhaul (Vorssaint-style tabbed
-  menu, Dashboard window w/ Swift Charts) → v0.3.0 context pack part 1 (range tabs,
-  context tagging, zombie detection, AES-GCM encryption, night pause, health dot,
-  onboarding window, OSLog, unit tests, CI) → v0.3.1 update checker → v0.3.2 Secure
-  Input detection → v0.3.3 blank-tab fix + focus ring + per-app history + insights
-  tab + menu-bar time readout → v0.4.0 context pack part 2 (8 new collectors:
-  sessions, camera/mic, media, network, clipboard, focus, app lifecycle, mail;
-  meeting inference; live NOW strip; Dashboard context cards; TCC Focus crash
-  fix; 34 tests) → v0.5.0 receipts & spending (ReceiptMailCollector 2-pass
-  AppleScript scan of Mail.app incl. Gmail; regex parser w/ merchant templates +
-  card last-4; categorizer w/ user overrides; SpendStats rollups; Wallet menu
-  tab + Dashboard spending section + Add Receipt form; CSV/JSON tax export to
-  ~/Documents/macsync-spend/; 74 tests).
+- **Version**: `0.5.2` in `Info.plist` (bump per release).
+- **History**: v0.1.0 initial build → v0.2.0 visual overhaul → v0.3.0 context pack part 1
+  → v0.3.1 update checker → v0.3.2 Secure Input → v0.3.3 blank-tab fix + focus ring
+  → v0.4.0 context pack part 2 (8 new collectors) → v0.5.0 receipts & spending
+  → v0.5.1 receipt filter refinements ($0 / decline rejection) → v0.5.2 investment,
+  banking, flight alert, and cloud budget exclusion (hard gate on brokerage/trade
+  platforms like Public/Robinhood, airline flight status/check-in/SkyMiles alerts,
+  cloud budget thresholds, and banking transfers; 110 tests).
 - **Released via GitHub Releases**: `v0.1.0` … `v0.3.3`, each with `build/macsync.dmg`.
 - **Design language**: dark Vorssaint-like. `AppTheme` lives in
   `Sources/macsync/Dashboard/DashboardView.swift` (menu + dashboard share it).
