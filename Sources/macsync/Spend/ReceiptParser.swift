@@ -29,6 +29,7 @@ enum ReceiptParser {
     private static let senderRules: [SenderRule] = [
         SenderRule(domain: "amazon.com", merchant: "Amazon", category: .shopping),
         SenderRule(domain: "amazonaws.com", merchant: "Amazon Web Services", category: .software),
+        SenderRule(domain: "shopify.com", merchant: "Shopify", category: .business),
         SenderRule(domain: "apple.com", merchant: "Apple", category: .subscriptions),
         SenderRule(domain: "adobereceipts.com", merchant: "Adobe", category: .software),
         SenderRule(domain: "netflix.com", merchant: "Netflix", category: .subscriptions),
@@ -78,26 +79,102 @@ enum ReceiptParser {
     /// Cheap subject/sender heuristic used to shortlist messages before their
     /// bodies are fetched. Single source of truth shared by the collector.
     static func looksLikeReceipt(subject: String, sender: String) -> Bool {
+        // Declined / failed payments are NOT purchases — never count them.
+        if looksLikeFailedPayment(subject: subject, sender: sender) { return false }
         let subj = subject.lowercased()
         let subjectWords = ["receipt", "invoice", "payment", "your order", "order confirmation",
                             "purchase", "statement", "charged", "paid", "shipment", "on the way",
-                            "delivered", "transaction", "subscription"]
+                            "delivered", "transaction", "subscription", "order", "bill",
+                            "confirmed", "your trade", "paid you"]
         if subjectWords.contains(where: { subj.contains($0) }) { return true }
         return senderRules.contains { sender.lowercased().contains($0.domain.lowercased()) }
     }
 
-    /// Parses one candidate receipt message. `sentDate` is the message date
+    /// Declined / unsuccessful payments must never be counted as spending.
+    /// Matches the common bank/processor phrasings (Privacy.com pseudo-card
+    /// decline alerts, Stripe "unsuccessful payment" retries, etc.).
+    static func looksLikeFailedPayment(subject: String, sender: String) -> Bool {
+        let subj = subject.lowercased()
+        let declineWords = ["decline", "unsuccessful", "payment failed", "failed payment",
+                            "was declined", "could not be processed", "couldn't be processed",
+                            "payment attempt failed", "fix your payment", "action required: update"]
+        if declineWords.contains(where: { subj.contains($0) }) { return true }
+        let s = sender.lowercased()
+        return s.hasPrefix("failed-payments") || s.contains("failed-payments@")
+    }
+
+    /// Rejects messages that look receipt-like but are not real purchases:
+/// - Declined / failed charges (already checked in looksLikeFailedPayment but
+///   we also scan the body for cases the subject doesn't mention).
+/// - Zero-dollar totals (e.g. statement notices, account summaries).
+/// - Explicit "no charge" / "free" confirmations.
+/// - Non-transactional pseudo-card notifications (e.g. Flux/Team Privacy).
+static func shouldRejectNonTransaction(subject: String, sender: String, body: String, amount: Decimal?) -> Bool {
+    let text = (subject + "\n" + body).lowercased()
+
+    // 1. Declined language in body even if subject didn't carry it.
+    let declineWords = ["declined", "was declined", "payment failed", "unsuccessful payment",
+                        "could not be processed", "couldn't be processed", "fix your payment",
+                        "payment attempt failed", "charge failed", "authorization failed",
+                        "not authorized", "rejected by bank"]
+    if declineWords.contains(where: { text.contains($0) }) { return true }
+
+    // 2. $0 total — never a real purchase.
+    if let amt = amount, amt == 0 { return true }
+
+    // 3. "No charge" / "free" confirmation (e.g. $0 trial, free order).
+    if text.contains("no charge") || text.contains("charged $0") { return true }
+
+        // 4. Pseudo-card / promotional notifications that carry a card mask
+    //    but no actual purchase (Flux Team Privacy, etc.).
+    let senderLC = sender.lowercased()
+    let promoSenders = ["teamprivacy", "team@privacy", "noreply@privacy", "flux.ai"]
+    if promoSenders.contains(where: { senderLC.contains($0) }) { return true }
+
+    // 5. Transactional/marketing platforms that often carry dollar amounts
+    //    in notifications (statements, promo codes, balance updates) but
+    //    are not purchase confirmations.
+    let promoDomains = ["klaviyomail.com", "sender-sib.com", "broadridge.net",
+                        "amazonses.com", "sendgrid.net", "mailgun", "postmark"]
+    // Only reject when there's no strong purchase confirmation in the subject.
+    // (amazonses sends both real receipts and marketing; if the subject
+    //  contains "receipt" or "order", let it through.)
+    let subjLC = subject.lowercased()
+    if !subjLC.contains("receipt") && !subjLC.contains("order") && !subjLC.contains("invoice") {
+        if promoDomains.contains(where: { senderLC.contains($0) }) { return true }
+    }
+
+    // 6. Subject lines that are clearly not purchases even if they
+    //    mention a dollar amount (notifications, updates, confirmations
+    //    of non-financial events).
+    let nonPurchaseSubjects = ["notification", "reminder", "update", "your account",
+                               "security alert", "password", "verification code",
+                               "new sign-in", "login", "newsletter", "weekly recap"]
+    if nonPurchaseSubjects.contains(where: { subjLC.contains($0) }) && !subjLC.contains("receipt") && !subjLC.contains("invoice") && !subjLC.contains("order") {
+        return true
+    }
+
+    return false
+}
+
+/// Parses one candidate receipt message. `sentDate` is the message date
     /// (used when no explicit purchase date can be found in the body).
     static func parse(subject: String, sender: String, body: String, sentDate: Date) -> ParsedReceipt {
         let merchant = resolveMerchant(subject: subject, sender: sender)
-        let amount = firstAmount(in: body)
+                var amount = firstAmount(in: body)
         let labeled = hasLabeledTotal(in: body)
         let card = cardLast4(in: body.replacingOccurrences(of: "\n", with: " "))
         let date = purchaseDate(in: subject, body: body) ?? sentDate
 
         var confidence = 0.35                              // baseline: weak guess
         if merchant != nil { confidence += 0.20 }
-        if amount != nil { confidence += 0.25 }
+                if amount != nil { confidence += 0.25 }
+        // Hard rejects (declined / non-transactions): zero out everything so
+        // the caller treats this as a non-receipt.
+        if shouldRejectNonTransaction(subject: subject, sender: sender, body: body, amount: amount) {
+            confidence = 0
+            amount = nil
+        }
         if labeled { confidence += 0.15 }
         if card != nil { confidence += 0.15 }
         if merchantWasKnown(sender) { confidence += 0.10 }
@@ -198,10 +275,19 @@ enum ReceiptParser {
         if let m = firstMatch(#"(?:receipt|invoice|payment)\s+(?:from|by)\s+([A-Za-z0-9][A-Za-z0-9&.' -]{1,40})"#, in: subject, group: 1) {
             return m.trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        // 2. "… bill for {X}" (Shopify billing), "order from {X}".
+        if let m = firstMatch(#"(?:bill|invoice|order|payment)\s+for\s+([A-Za-z0-9][A-Za-z0-9&.' -]{1,40})"#, in: subject, group: 1) {
+            return m.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        // 3. "You paid {Person} $8.00" (P2P payments).
+        if let m = firstMatch(#"you paid\s+([A-Za-z0-9][A-Za-z0-9 .'&-]{1,40}?)(?=\s*\$|\s+[0-9]|$)"#, in: subject, group: 1) {
+            return m.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        // 4. "Receipt from {Merchant}" (Square-style).
         if let m = firstMatch(#"receipt[^0-9A-Za-z]{1,4}from[^0-9A-Za-z]{1,4}([A-Za-z0-9][^,;]{1,40})"#, in: subject, group: 1) {
             return m.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        // 2. Known sender domain (e.g. order-update@amazon.com).
+        // 5. Known sender domain (e.g. order-update@amazon.com).
         if let rule = senderRules.first(where: { sender.localizedLowercase.contains($0.domain.lowercased()) }) {
             return rule.merchant
         }

@@ -57,9 +57,9 @@ final class ReceiptMailCollector {
         for detail in details {
             let parsed = ReceiptParser.parse(subject: detail.subject, sender: detail.sender,
                                              body: detail.body, sentDate: detail.date)
-            guard let amount = parsed.amount else {
-                // No amount → not a real purchase; don't record.
-                Log.app.error("receipt skipped (no amount): \(detail.subject.prefix(60))")
+            guard let amount = parsed.amount, amount > 0 else {
+                // No amount, or $0 total (statement / promo / declined) → not a real purchase.
+                Log.app.error("receipt skipped (no/$0 amount): \(detail.subject.prefix(60))")
                 continue
             }
             let merchant = parsed.merchant ?? Self.merchantGuess(from: detail.sender)

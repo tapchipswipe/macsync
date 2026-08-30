@@ -4,6 +4,54 @@ enum ReceiptParserTests {
     static func run() {
         let d = Date(timeIntervalSince1970: 1_700_000_000)
 
+        // ── Declined / failed payments are NEVER receipts (v0.5.1) ──
+        expect(ReceiptParser.looksLikeFailedPayment(
+            subject: "Transaction decline notification", sender: "Team Privacy <support@privacy.com>"),
+            "Privacy.com decline subject → failed payment")
+        expect(ReceiptParser.looksLikeFailedPayment(
+            subject: "$142.00 payment to Flux.ai was unsuccessful again", sender: "Flux.ai <failed-payments@flux.ai>"),
+            "unsuccessful payment subject → failed payment")
+        expect(ReceiptParser.looksLikeFailedPayment(
+            subject: "$49.99 payment to Planner5D, UAB was unsuccessful again", sender: "\"Planner5D, UAB\" <failed-payments+acct@stripe.com>"),
+            "stripe failed-payments sender → failed payment")
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Transaction decline notification", sender: "Team Privacy <support@privacy.com>"),
+            "declined transaction excluded from receipts")
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "$49.99 payment to Planner5D, UAB was unsuccessful again", sender: "x <failed-payments@stripe.com>"),
+            "unsuccessful payment excluded from receipts")
+
+        // ── Shopify billing: "bill for {X}" ──
+        let shopify = ReceiptParser.parse(
+            subject: "Aug 13, 2026 bill for Kart Rising LLC",
+            sender: "Shopify Billing <billing@shopify.com>",
+            body: "Your bill for this period.\nTotal: $39.00\nCharged to Visa ending in 4417",
+            sentDate: d)
+        expect(shopify.merchant == "Kart Rising LLC", "Shopify 'bill for' merchant extraction")
+        expect(shopify.amount == Decimal(string: "39.00"), "Shopify bill total")
+        expect(!shopify.needsReview, "Shopify bill high confidence")
+
+        // ── Swell Labs: "Order #X confirmed" (unknown sender, display-name fallback) ──
+        expect(ReceiptParser.looksLikeReceipt(
+            subject: "Order #955890 confirmed", sender: "Swell Labs <hi@swelllabs.org>"),
+            "order-confirmed subject is a receipt candidate")
+        let swell = ReceiptParser.parse(
+            subject: "Order #955890 confirmed",
+            sender: "Swell Labs <hi@swelllabs.org>",
+            body: "Thanks for your order!\nOrder total: $64.00\nPaid with Mastercard ending in 8812",
+            sentDate: d)
+        expect(swell.merchant == nil, "unknown sender → merchant nil (collector falls back to display name)")
+        expect(swell.amount == Decimal(string: "64.00"), "Swell Labs order total")
+
+        // ── Venmo P2P: "You paid {Person} $X" ──
+        let venmo = ReceiptParser.parse(
+            subject: "You paid Jackson Wainwright $8.00",
+            sender: "Venmo <venmo@venmo.com>",
+            body: "You paid Jackson Wainwright $8.00.",
+            sentDate: d)
+        expect(venmo.merchant == "Jackson Wainwright", "Venmo P2P payee as merchant")
+        expect(venmo.amount == Decimal(string: "8.00"), "Venmo amount")
+
         // ── Amazon: labeled total + card mask + known sender ──
         let amazon = ReceiptParser.parse(
             subject: "Your Amazon.com order of Toaster Oven",
@@ -57,6 +105,37 @@ enum ReceiptParserTests {
             sentDate: d)
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "MMM d, yyyy"
         expect(dated.transactionDate == f.date(from: "Aug 12, 2026"), "purchase date extracted from body")
+
+        // ── Non-transaction rejections (v0.5.1) ──
+        // $0 amount is never a real purchase
+        let zeroAmount = ReceiptParser.parse(
+            subject: "Receipt", sender: "receipt@example.com",
+            body: "Total: $0.00", sentDate: d)
+        expect(zeroAmount.amount == nil, "zero amount rejected → nil")
+
+        // Klaviyo marketing email with dollar amount, no purchase language in subject
+        let klaviyo = ReceiptParser.parse(
+            subject: "Your weekly recap", sender: "Klaviyo <hello@klaviyomail.com>",
+            body: "This week you saved $12.99 on Turmerry sheets", sentDate: d)
+        expect(klaviyo.amount == nil, "klaviyo marketing email rejected")
+
+        // Sender-sib (Brevo) notification with dollar amount
+        let brevo = ReceiptParser.parse(
+            subject: "Account notification", sender: "Panther <no-reply@hl.d.sender-sib.com>",
+            body: "Your plan balance: $20.00", sentDate: d)
+        expect(brevo.amount == nil, "brevo notification rejected")
+
+        // Declined charge in body even if subject says "receipt"
+        let declined = ReceiptParser.parse(
+            subject: "Receipt", sender: "Flux.ai <support@flux.ai>",
+            body: "Your payment of $5.99 was declined. Card ending in 2654.", sentDate: d)
+        expect(declined.amount == nil, "declined charge rejected")
+
+        // But a real order from an ESP domain passes if subject says "order"
+        let realOrder = ReceiptParser.parse(
+            subject: "Order #123 confirmed", sender: "Swell Labs <hi@swelllabs.org>",
+            body: "Order total: $64.00\nPaid with Visa ending in 8812", sentDate: d)
+        expect(realOrder.amount == Decimal(string: "64.00"), "real order from ESP domain passes")
     }
 }
 
