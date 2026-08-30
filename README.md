@@ -23,6 +23,8 @@ archive to iCloud Drive.
 | Hardware | IOKit / Mach / getifaddrs | battery %, CPU load, RAM pressure, network bytes/sec |
 | Idle sessions | `CGEventSource.secondsSinceLastEventType` | when you step away (≥ 5 min) |
 | Location | CoreLocation | periodic pings (significant-change + hourly) |
+| Context pack | IOKit / CoreAudio / MediaRemote / CoreWLAN / Intents / Mail | sessions, camera/mic-in-use, Now Playing, Wi-Fi/VPN, Focus, clipboard counts, app lifecycle, Mail stats |
+| **Receipts & Spending** | Apple Mail (opt-in) | merchant, amount, date, card last-4, category — **parsed fields only, never message bodies** |
 
 ## Data & sync
 
@@ -32,6 +34,28 @@ archive to iCloud Drive.
 - Output: `macsync_YYYY-MM-DD.json` — a structured archive with per-kind event counts
   and a daily summary (keystroke totals, per-app usage, idle time, battery range).
 - Destination resolution: iCloud ubiquity container → `~/Library/Mobile Documents/com~apple~CloudDocs/macsync/` → local `Exports/` fallback.
+
+## Receipts & Spending (v0.5.0)
+
+Tracks expenses for tax purposes by parsing **emailed receipts** from Apple Mail
+(Gmail accounts connected to Mail.app work).
+
+- **Off by default.** Enable "Capture receipts from Mail" in Settings. When off,
+  no message bodies are ever read.
+- How it works: a two-pass AppleScript scan lists recent subjects/senders (pass A),
+  shortlists messages that look like receipts (`ReceiptParser.looksLikeReceipt`),
+  and fetches bodies **only** for that shortlist (pass B). Amount, merchant, date,
+  and card last-4 are regex-parsed; only those fields are stored — never the body.
+- Card association: extracts the last 4 digits from common phrasings
+  ("Card ending in 1234", "Visa •••• 1234", "XXXX 1234").
+- Categories: keyword rules (dining, software, travel, …) + per-merchant user
+  overrides. Each category has a default **business-deductible** hint; totals show
+  monthly spend, per-card spend, and the deductible total.
+- Manual entry: Wallet tab → "Add Receipt…" for cash/paper receipts.
+- Tax export: Settings → "Export CSV…" / "Export JSON…" write to
+  `~/Documents/macsync-spend/` (date, merchant, category, amount, card, deductible).
+- Low-confidence parses are flagged **needs review** in the Wallet tab.
+- Dedup by Mail message id — rescans never double-count.
 
 ## Build
 
@@ -97,7 +121,8 @@ Sources/macsync/
 ├── Dashboard/
 │   ├── TodayStats.swift        live today-aggregation (keys, focus, apps, battery…)
 │   └── DashboardView.swift     Swift Charts dashboard window + AppTheme + ring
-├── Collectors/                 AppWindow / InputMetrics / Browser / Hardware / Idle / Location
+├── Collectors/                 AppWindow / InputMetrics / Browser / Hardware / Idle / Location / Session / CameraMic / Media / NetworkContext / Clipboard / FocusMode / AppLifecycle / Mail / ReceiptMail
+├── Spend/                      ReceiptParser / ReceiptCategorizer / SpendStats / SpendExport / SpendFormat / SpendOptions
 ├── Storage/DataStore.swift     append-only JSONL buffer + stats
 ├── Sync/                       SyncScheduler (23:59 + watchdog) / iCloudSync (destinations)
 └── Permissions/PermissionsManager.swift

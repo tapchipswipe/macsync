@@ -25,6 +25,8 @@ struct TrackerEvent: Codable {
         case focusModeState
         case appLifecycle
         case mailStats
+        // v0.5.0 receipts & spending
+        case receipt
     }
 
     enum Payload: Codable {
@@ -44,6 +46,7 @@ struct TrackerEvent: Codable {
         case focusModeState(FocusModePayload)
         case appLifecycle(AppLifecyclePayload)
         case mailStats(MailStatsPayload)
+        case receipt(ReceiptPayload)
 
         private enum CodingKeys: String, CodingKey {
             case type
@@ -51,6 +54,7 @@ struct TrackerEvent: Codable {
             case hardwareStatus, idleSession, locationPing, syncResult
             case sessionEvent, cameraMicState, nowPlaying, networkContext
             case clipboardMetric, focusModeState, appLifecycle, mailStats
+            case receipt
         }
 
         private enum PayloadType: String, Codable {
@@ -58,6 +62,7 @@ struct TrackerEvent: Codable {
             case hardwareStatus, idleSession, locationPing, syncResult
             case sessionEvent, cameraMicState, nowPlaying, networkContext
             case clipboardMetric, focusModeState, appLifecycle, mailStats
+            case receipt
         }
 
         init(from decoder: Decoder) throws {
@@ -80,6 +85,7 @@ struct TrackerEvent: Codable {
             case .focusModeState:  self = .focusModeState(try c.decode(FocusModePayload.self, forKey: .focusModeState))
             case .appLifecycle:    self = .appLifecycle(try c.decode(AppLifecyclePayload.self, forKey: .appLifecycle))
             case .mailStats:       self = .mailStats(try c.decode(MailStatsPayload.self, forKey: .mailStats))
+            case .receipt:         self = .receipt(try c.decode(ReceiptPayload.self, forKey: .receipt))
             }
         }
 
@@ -102,6 +108,7 @@ struct TrackerEvent: Codable {
             case .focusModeState(let p):  try c.encode(PayloadType.focusModeState, forKey: .type);  try c.encode(p, forKey: .focusModeState)
             case .appLifecycle(let p):    try c.encode(PayloadType.appLifecycle, forKey: .type);    try c.encode(p, forKey: .appLifecycle)
             case .mailStats(let p):       try c.encode(PayloadType.mailStats, forKey: .type);       try c.encode(p, forKey: .mailStats)
+            case .receipt(let p):         try c.encode(PayloadType.receipt, forKey: .type);         try c.encode(p, forKey: .receipt)
             }
         }
     }
@@ -265,6 +272,83 @@ struct MailStatsPayload: Codable {
     let topSenders: [String]?   // nil unless sender-name logging is enabled
     let success: Bool
     let errorMessage: String?
+}
+
+// MARK: - v0.5.0 Receipts & Spending
+
+/// Category of an expense. `businessDeductible` is the default tax hint; the
+/// user can override it per category in Settings (and per receipt in the UI).
+enum ReceiptCategory: String, CaseIterable, Codable, Identifiable {
+    case dining, groceries, software, subscriptions, travel, transport
+    case utilities, health, education, shopping, business, other, unknown
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .dining: "Dining"; case .groceries: "Groceries"
+        case .software: "Software"; case .subscriptions: "Subscriptions"
+        case .travel: "Travel"; case .transport: "Transport"
+        case .utilities: "Utilities"; case .health: "Health"
+        case .education: "Education"; case .shopping: "Shopping"
+        case .business: "Business"; case .other: "Other"
+        case .unknown: "Needs review"
+        }
+    }
+
+    /// Default business-deductibility hint (overridable per category).
+    var businessDeductible: Bool {
+        switch self {
+        case .software, .subscriptions, .travel, .utilities,
+             .business, .education, .transport: return true
+        default: return false
+        }
+    }
+
+    var colorHex: String {
+        switch self {
+        case .dining: "#FFD166"; case .groceries: "#63E6BE"
+        case .software: "#5B8CFF"; case .subscriptions: "#7BDFF2"
+        case .travel: "#C77DFF"; case .transport: "#FF8A5B"
+        case .utilities: "#FF6B8A"; case .health: "#9AA0B5"
+        case .education: "#FF9F1C"; case .shopping: "#F4D35E"
+        case .business: "#2EC4B6"; case .other: "#9AA0B5"
+        case .unknown: "#8D99AE"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .dining: "fork.knife"; case .groceries: "cart"
+        case .software: "chevron.left.forwardslash.chevron.right"; case .subscriptions: "repeat"
+        case .travel: "airplane"; case .transport: "car"
+        case .utilities: "bolt"; case .health: "heart"
+        case .education: "graduationcap"; case .shopping: "bag"
+        case .business: "briefcase"; case .other: "square.grid.2x2"
+        case .unknown: "questionmark"
+        }
+    }
+
+    static var assignable: [ReceiptCategory] { allCases.filter { $0 != .unknown } }
+}
+
+/// One tracked expense. **Only parsed fields are stored — never the email
+/// body.** `source` is "mail" or "manual"; `mailMessageID` enables dedup.
+struct ReceiptPayload: Codable, Identifiable {
+    let id: UUID
+    let merchant: String
+    let amount: Decimal
+    let currency: String
+    let cardLast4: String?
+    let category: ReceiptCategory
+    let transactionDate: Date
+    let capturedAt: Date
+    let source: String        // "mail" | "manual"
+    let mailMessageID: String?
+    let confidence: Double    // 0...1 parser reliability
+    let needsReview: Bool     // low confidence → ask the user to confirm
+    let notes: String?
+
+    var amountDouble: Double { NSDecimalNumber(decimal: amount).doubleValue }
 }
 
 // MARK: - Day archive (compiled output)

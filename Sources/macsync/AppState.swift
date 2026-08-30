@@ -23,12 +23,15 @@ final class AppState: ObservableObject {
     private let focusModeCollector = FocusModeCollector()
     private let appLifecycleCollector = AppLifecycleCollector()
     private let mailCollector = MailCollector()
+    private let receiptCollector = ReceiptMailCollector()
     private let syncEngine = iCloudSync()
     private(set) lazy var scheduler = SyncScheduler(syncEngine: syncEngine)
     let updater = UpdateChecker.shared
 
     @Published var isTracking = false
     @Published var stats = TodayStats.empty
+    @Published var spendToday = SpendSummary.empty
+    @Published var spendMonth = SpendSummary.empty
     @Published var todayEventCount = 0
     @Published var lastSyncDate: Date?
     @Published var lastSyncSuccess = false
@@ -105,6 +108,7 @@ final class AppState: ObservableObject {
         focusModeCollector.start()
         appLifecycleCollector.start()
         mailCollector.start()
+        receiptCollector.start()
         locationTracker.start()
         isTracking = true
     }
@@ -124,6 +128,7 @@ final class AppState: ObservableObject {
         focusModeCollector.stop()
         appLifecycleCollector.stop()
         mailCollector.stop()
+        receiptCollector.stop()
         locationTracker.stop()
         isTracking = false
     }
@@ -146,6 +151,22 @@ final class AppState: ObservableObject {
         let events = DataStore.shared.events(forDay: day)
         let archived = HistoryLoader.archivedEvents(daysBack: 7)
         stats = TodayAggregator.compute(events: events, archived: archived)
+        spendToday = SpendStats.calculate(events: SpendStats.eventsForToday())
+        spendMonth = SpendStats.calculate(events: SpendStats.eventsForMonth())
+    }
+
+    // MARK: - Manual receipts (v0.5.0)
+
+    /// Adds a hand-entered receipt (cash / paper / anything email missed).
+    func addManualReceipt(merchant: String, amountAmount: Decimal, category: ReceiptCategory,
+                          cardLast4: String?, notes: String?, date: Date) {
+        let payload = ReceiptPayload(
+            id: UUID(), merchant: merchant, amount: amountAmount, currency: "USD",
+            cardLast4: cardLast4, category: category, transactionDate: date,
+            capturedAt: Date(), source: "manual", mailMessageID: nil,
+            confidence: 1.0, needsReview: false, notes: notes)
+        DataStore.shared.append(TrackerEvent(ts: date, kind: .receipt, payload: .receipt(payload)))
+        refreshAggregation()
     }
 
     func syncNow() { scheduler.syncNow() }
@@ -249,4 +270,6 @@ final class AppState: ObservableObject {
 
     func openLoginItemsSettings() { SMAppService.openSystemSettingsLoginItems() }
     func openDataFolder() { NSWorkspace.shared.open(DataStore.shared.root) }
+    func openSpendFolder() { NSWorkspace.shared.open(SpendExport.exportDir) }
+    func revealSpendExport(url: URL) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
 }

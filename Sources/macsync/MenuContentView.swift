@@ -3,13 +3,14 @@ import SwiftUI
 // MARK: - Tabs (Vorssaint-style icon tab strip)
 
 enum MenuTab: String, CaseIterable, Identifiable {
-    case today, apps, insights, sync, settings
+    case today, apps, insights, wallet, sync, settings
     var id: String { rawValue }
     var icon: String {
         switch self {
         case .today:    return "waveform.path.ecg"
         case .apps:     return "square.grid.2x2"
         case .insights: return "sparkles"
+        case .wallet:   return "creditcard"
         case .sync:     return "icloud"
         case .settings: return "gearshape"
         }
@@ -21,10 +22,12 @@ struct MenuContentView: View {
     @Environment(\.openWindow) private var openWindow
     @ObservedObject private var updater = UpdateChecker.shared
     @State private var tab: MenuTab = .today
+    @State private var showAddReceipt = false
 
     @AppStorage("macsync.nightPauseEnabled") private var nightPause = false
     @AppStorage("macsync.zipArchives") private var zipArchives = true
     @AppStorage("macsync.encryptArchives") private var encryptArchives = false
+    @AppStorage("macsync.receiptCaptureEnabled") private var receiptCapture = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,6 +42,7 @@ struct MenuContentView: View {
                     case .today:    todayTab
                     case .apps:     appsTab
                     case .insights: insightsTab
+                    case .wallet:   walletTab
                     case .sync:     syncTab
                     case .settings: settingsTab
                     }
@@ -276,6 +280,107 @@ struct MenuContentView: View {
         }
     }
 
+    // MARK: - WALLET tab (v0.5.0)
+
+    private var walletTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionLabel("WALLET · \(SpendFormat.monthTitle())")
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(SpendFormat.amount(appState.spendMonth.total))
+                        .font(.system(size: 26, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                    Text("spent this month").font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.45))
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(SpendFormat.amount(appState.spendMonth.deductibleTotal))
+                        .font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(AppTheme.batteryGreen)
+                    Text("tax deductible").font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.45))
+                }
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(AppTheme.card))
+
+            if appState.spendMonth.receipts.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Image(systemName: "creditcard").font(.system(size: 16)).foregroundStyle(.white.opacity(0.3))
+                    Text("No receipts tracked yet.")
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.8))
+                    Text("Enable “Capture receipts from Mail” in Settings to pick up emailed receipts automatically, or add one manually below.")
+                        .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.45))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+            } else {
+                let categories = appState.spendMonth.byCategory
+                    .sorted { $0.value > $1.value }
+                    .prefix(6)
+                if !categories.isEmpty {
+                    sectionLabel("BY CATEGORY")
+                    VStack(spacing: 8) {
+                        ForEach(Array(categories), id: \.key) { cat, amount in
+                            HStack(spacing: 8) {
+                                Image(systemName: cat.icon).font(.system(size: 10)).foregroundStyle(Color(hex: cat.colorHex))
+                                Text(cat.label).font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.85))
+                                Spacer()
+                                Text(SpendFormat.amount(amount)).font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.6))
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+                }
+                if !appState.spendMonth.byCard.isEmpty {
+                    sectionLabel("BY CARD")
+                    HStack(spacing: 8) {
+                        ForEach(Array(appState.spendMonth.byCard.sorted { $0.value > $1.value }), id: \.key) { card, amt in
+                            VStack(spacing: 2) {
+                                Image(systemName: "creditcard.fill").font(.system(size: 9)).foregroundStyle(AppTheme.accent)
+                                Text(card).font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                                Text(SpendFormat.amount(amt)).font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
+                            }
+                            .padding(.horizontal, 8).padding(.vertical, 6)
+                            .background(Capsule().fill(AppTheme.card))
+                        }
+                        Spacer()
+                    }
+                }
+                sectionLabel("RECENT")
+                VStack(spacing: 6) {
+                    ForEach(Array(appState.spendMonth.receipts.prefix(6))) { r in
+                        HStack(spacing: 8) {
+                            Image(systemName: r.category.icon).font(.system(size: 10)).foregroundStyle(Color(hex: r.category.colorHex))
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(r.merchant).font(.system(size: 11.5, weight: .medium)).foregroundStyle(.white).lineLimit(1)
+                                Text(SpendFormat.shortDate(r.transactionDate) + (r.cardLast4.map { " · ••\($0)" } ?? "") + (r.needsReview ? " · review" : ""))
+                                    .font(.system(size: 9.5)).foregroundStyle(r.needsReview ? .orange : .white.opacity(0.4))
+                            }
+                            Spacer()
+                            Text(SpendFormat.amount(r.amount, currency: r.currency))
+                                .font(.system(size: 11.5, design: .rounded)).foregroundStyle(.white.opacity(0.85))
+                        }
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(AppTheme.card))
+                    }
+                }
+            }
+            if appState.spendMonth.needsReviewCount > 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.circle").font(.system(size: 11)).foregroundStyle(.orange)
+                    Text("\(appState.spendMonth.needsReviewCount) receipt(s) need confirmation").font(.system(size: 11)).foregroundStyle(.orange)
+                }
+            }
+            Button { showAddReceipt = true } label: {
+                Label("Add Receipt…", systemImage: "plus.circle")
+                    .font(.system(size: 12, weight: .semibold)).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).tint(AppTheme.accent).controlSize(.regular)
+        }
+        .sheet(isPresented: $showAddReceipt) { AddReceiptSheet(appState: appState) }
+    }
+
     // MARK: - SYNC tab
 
     private var nextSyncText: String? {
@@ -398,6 +503,32 @@ struct MenuContentView: View {
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+            sectionLabel("WALLET · SPENDING")
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("Capture receipts from Mail", isOn: $receiptCapture)
+                    .toggleStyle(.switch).controlSize(.mini).font(.system(size: 12))
+                Text("Off by default. When on, only messages that look like receipts are read; only merchant, amount, date, and card last-4 are stored.")
+                    .font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.4))
+                    .fixedSize(horizontal: false, vertical: true)
+                Divider().opacity(0.5)
+                HStack(spacing: 12) {
+                    Button { exportSpend(.csv) } label: {
+                        Label("Export CSV…", systemImage: "doc.text").font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(AppTheme.accent)
+                    Button { exportSpend(.json) } label: {
+                        Text("Export JSON").font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(AppTheme.accent)
+                    Spacer()
+                    Button { appState.openSpendFolder() } label: {
+                        Label("Open Spend Folder", systemImage: "folder").font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.white.opacity(0.55))
+                }
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
             sectionLabel("TRACKING")
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Record activity", isOn: Binding(
@@ -471,6 +602,14 @@ struct MenuContentView: View {
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(AppTheme.card))
     }
+
+    private func exportSpend(_ kind: ExportKind) {
+        let receipts = SpendStats.allReceipts()
+        let url = kind == .csv ? SpendExport.exportCSV(receipts: receipts) : SpendExport.exportJSON(receipts: receipts)
+        if let url { appState.revealSpendExport(url: url) }
+    }
+
+    private enum ExportKind { case csv, json }
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
@@ -598,6 +737,64 @@ final class AppHistoryStore: ObservableObject {
     @Published var selectedApp: String?
     func select(app: String) { selectedApp = app }
     func clear() { selectedApp = nil }
+}
+
+// MARK: - Add Receipt sheet (v0.5.0)
+
+private struct AddReceiptSheet: View {
+    @ObservedObject var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var merchant = ""
+    @State private var amountText = ""
+    @State private var category: ReceiptCategory = .other
+    @State private var cardLast4 = ""
+    @State private var notes = ""
+    @State private var date = Date()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Add Receipt").font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(.white)
+            TextField("Merchant (e.g. Joe's Diner)", text: $merchant)
+                .textFieldStyle(.plain)
+                .padding(9).background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.card))
+            TextField("Amount (e.g. 12.50)", text: $amountText)
+                .textFieldStyle(.plain)
+                .padding(9).background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.card))
+            HStack {
+                Picker("Category", selection: $category) {
+                    ForEach(ReceiptCategory.assignable) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.menu)
+                TextField("Last 4 (opt)", text: $cardLast4)
+                    .textFieldStyle(.plain).frame(width: 96)
+                    .padding(9).background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.card))
+            }
+            DatePicker("Date", selection: $date, displayedComponents: .date)
+                .datePickerStyle(.compact)
+            TextField("Notes (optional)", text: $notes)
+                .textFieldStyle(.plain)
+                .padding(9).background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.card))
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(.plain).foregroundStyle(.white.opacity(0.6))
+                Button("Save") {
+                    if let amount = Decimal(string: amountText.trimmingCharacters(in: .whitespaces)), !merchant.isEmpty {
+                        appState.addManualReceipt(merchant: merchant.trimmingCharacters(in: .whitespaces),
+                                                  amountAmount: amount, category: category,
+                                                  cardLast4: cardLast4.isEmpty ? nil : cardLast4,
+                                                  notes: notes.isEmpty ? nil : notes, date: date)
+                        dismiss()
+                    }
+                }
+                .buttonStyle(.borderedProminent).tint(AppTheme.accent)
+            }
+        }
+        .padding(20)
+        .frame(width: 320)
+        .background(AppTheme.window)
+        .preferredColorScheme(.dark)
+    }
 }
 
 // MARK: - Footer button style

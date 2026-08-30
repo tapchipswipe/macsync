@@ -65,6 +65,7 @@ struct DashboardView: View {
                     appsCard(s)
                 }
                 contextSection(s, events: todayEvents)
+                if !appState.spendToday.receipts.isEmpty { spendSection(appState.spendToday) }
                 insightsCard(s)
                 hardwareRow(s)
             }
@@ -544,8 +545,48 @@ extension DashboardView {
             if !agg.categories.isEmpty { categoriesCard(agg) }
             if !agg.apps.isEmpty { appsCard(agg) }
             contextSection(agg, events: periodEvents)
+            let periodSpend = SpendStats.calculate(events: periodEvents)
+            if !periodSpend.receipts.isEmpty { spendSection(periodSpend) }
             insightsCard(agg)
         }
+    }
+
+    func spendSection(_ spend: SpendSummary) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionTitle("SPENDING", "Tracked receipts")
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(SpendFormat.amount(spend.total))
+                        .font(.system(size: 22, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                    Text("total").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(SpendFormat.amount(spend.deductibleTotal))
+                        .font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(AppTheme.batteryGreen)
+                    Text("tax deductible").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                }
+                Spacer()
+                if spend.needsReviewCount > 0 {
+                    Label("\(spend.needsReviewCount) needs review", systemImage: "exclamationmark.circle")
+                        .font(.system(size: 11)).foregroundStyle(.orange)
+                }
+            }
+            if !spend.byCategory.isEmpty {
+                HStack(alignment: .bottom, spacing: 14) {
+                    let total = max(NSDecimalNumber(decimal: spend.total).doubleValue, 0.01)
+                    ForEach(Array(spend.byCategory.sorted { $0.value > $1.value }.prefix(6)), id: \.key) { cat, amount in
+                        VStack(spacing: 6) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(hex: cat.colorHex))
+                                .frame(width: 28, height: 8 + CGFloat(NSDecimalNumber(decimal: amount).doubleValue / total) * 56)
+                            Text(cat.label).font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
+                        }
+                    }
+                    Spacer()
+                }
+            }
+        }
+        .cardStyle()
     }
 
     func hardwareRow(_ s: TodayStats) -> some View {

@@ -10,7 +10,7 @@ Repo: `github.com/tapchipswipe/macsync`. Local: `/Users/lucasdespot/macsync`.
 
 ## Key committed facts
 
-- **Version**: `0.4.0` in `Info.plist` (bump per release).
+- **Version**: `0.5.0` in `Info.plist` (bump per release).
 - **History**: v0.1.0 initial build → v0.2.0 visual overhaul (Vorssaint-style tabbed
   menu, Dashboard window w/ Swift Charts) → v0.3.0 context pack part 1 (range tabs,
   context tagging, zombie detection, AES-GCM encryption, night pause, health dot,
@@ -19,7 +19,11 @@ Repo: `github.com/tapchipswipe/macsync`. Local: `/Users/lucasdespot/macsync`.
   tab + menu-bar time readout → v0.4.0 context pack part 2 (8 new collectors:
   sessions, camera/mic, media, network, clipboard, focus, app lifecycle, mail;
   meeting inference; live NOW strip; Dashboard context cards; TCC Focus crash
-  fix; 34 tests).
+  fix; 34 tests) → v0.5.0 receipts & spending (ReceiptMailCollector 2-pass
+  AppleScript scan of Mail.app incl. Gmail; regex parser w/ merchant templates +
+  card last-4; categorizer w/ user overrides; SpendStats rollups; Wallet menu
+  tab + Dashboard spending section + Add Receipt form; CSV/JSON tax export to
+  ~/Documents/macsync-spend/; 74 tests).
 - **Released via GitHub Releases**: `v0.1.0` … `v0.3.3`, each with `build/macsync.dmg`.
 - **Design language**: dark Vorssaint-like. `AppTheme` lives in
   `Sources/macsync/Dashboard/DashboardView.swift` (menu + dashboard share it).
@@ -86,6 +90,37 @@ crashes ever reappear, check that key first.
   syncResult kinds.
 - Benign log noise: `com.apple.linkd.autoShortcut` connection errors (no App
   Intents), MediaRemote "no now-playing client", CFBundle factory warning.
+
+## V0.5.0 RECEIPTS & SPENDING — DONE (shipped as v0.5.0)
+
+**Capture is OPT-IN and OFF by default** (`macsync.receiptCaptureEnabled`).
+When off, no email bodies are ever read.
+
+- `ReceiptMailCollector` (Collectors/): two-pass AppleScript against Mail.app
+  (works with Gmail accounts connected to Mail — verified against
+  despotlucas@gmail.com). Pass A lists recent ids/subjects/senders (fast
+  `whose date received` filter + 400 cap — do NOT iterate all messages, times
+  out on big inboxes). Pass B fetches bodies only for ids passing
+  `ReceiptParser.looksLikeReceipt`, and marks them processed.
+- Dedup: `state/processed-receipt-messages.json` (last 2000 ids). Deleting that
+  file re-stores everything — the Aug-30 test duplicates came from manually
+  wiping it mid-test, not from a code bug.
+- `ReceiptParser` (Spend/): labeled totals ("Total: $x") beat bare "$x";
+  card masks ("ending in 1234", "•••• 1234", "XXXX 1234") → last4;
+  merchant = subject "receipt from X" > known sender domain (~45 rules).
+  Confidence <0.75 → needsReview (flagged in Wallet tab). NOTE: marketing
+  emails with "$60 off" style text produce false positives — they are flagged
+  needsReview, and the user can re-categorize/dismiss in the UI.
+- Receipts are stored with `ts` = the message’s received date → they land in
+  that day’s buffer file and ride that day’s archive to iCloud.
+- `SpendStats` rollups (by month/category/card/merchant + deductible total);
+  `eventsForMonth` combines buffer + archived days.
+- UI: Wallet menu tab (month total, deductible, by-category, by-card chips,
+  recent receipts, Add Receipt… sheet for cash/paper), Dashboard spendSection
+  (Today/Week/Month), Settings WALLET section (capture toggle, CSV/JSON export,
+  open spend folder).
+- Export: `~/Documents/macsync-spend/macsync-receipts-YYYY-MM-DD.csv|json`.
+- Smoke-tested live: 11 stored / 3 skipped-no-amount / rescan "0 fresh".
 
 ## Next steps (post-v0.4.0 — ideas, not committed)
 
