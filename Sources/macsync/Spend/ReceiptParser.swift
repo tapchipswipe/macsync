@@ -98,7 +98,8 @@ enum ReceiptParser {
         "transfer from checking", "transfer to savings", "ach transfer",
         "wire transfer", "direct deposit", "autopay scheduled",
         "monthly statement", "statement available", "account statement is ready",
-        "minimum payment due", "balance update"
+        "minimum payment due", "balance update", "paid off", "pay in 4",
+        "loan payment", "installment paid", "loan payoff", "repayment"
     ]
 
     private static let travelNonPurchaseKeywords: [String] = [
@@ -118,6 +119,13 @@ enum ReceiptParser {
 
     private static let userExcludedMerchants: [String] = [
         "kart rising", "steam", "steampowered", "valve corporation"
+    ]
+
+    private static let shippingTrackingKeywords: [String] = [
+        "a shipment from order", "your order is on the way", "your order is out for delivery",
+        "your order has been delivered", "track your shipment", "shipment tracking",
+        "has been shipped", "out for delivery", "has been delivered", "package delivered",
+        "order has been delivered", "delivery update"
     ]
 
     // MARK: - Enter / parse
@@ -194,6 +202,9 @@ enum ReceiptParser {
 
         // Cloud budget alerts in subject
         if cloudBudgetKeywords.contains(where: { subjLC.contains($0) }) { return true }
+
+        // Shipping & tracking status updates (not invoices)
+        if shippingTrackingKeywords.contains(where: { subjLC.contains($0) }) { return true }
 
         // User-excluded merchants (e.g. Kart Rising)
         if userExcludedMerchants.contains(where: { subjLC.contains($0) || senderLC.contains($0) }) { return true }
@@ -332,10 +343,12 @@ enum ReceiptParser {
     /// Bare "$x" is only accepted if supported by card last-4 or an explicit receipt subject.
     static func firstAmount(in text: String, subject: String = "", cardPresent: Bool = false) -> Decimal? {
         // 1. Explicit labeled totals ("Total: $...", "Amount charged: $...", "Total paid: $...")
+        // Uses (?<!sub) to avoid matching "Subtotal" before discounts.
         let labeledPatterns = [
-            #"(?:total\s+(?:amount|paid|charged|due)?|amount\s+(?:paid|charged|due)|grand\s+total|order\s+total|final\s+total|payment\s+amount|total\s+cost|total\s+fare|ticket\s+total|fare\s+total)[^0-9$€£]{0,25}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#,
-            #"(?:charged|billed|amount charged|paid)[^0-9$€£]{0,15}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#,
-            #"(?:you paid)[^0-9$€£]{0,25}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#
+            #"(?<!sub)\btotal(?:\s+(?:amount|paid|charged|due))?[^0-9$€£\n]{0,25}?\n?[^0-9$€£\n]{0,10}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#,
+            #"(?:amount\s+(?:paid|charged|due)|grand\s+total|order\s+total|final\s+total|payment\s+amount|total\s+cost|total\s+fare|ticket\s+total|fare\s+total)[^0-9$€£\n]{0,25}?\n?[^0-9$€£\n]{0,10}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#,
+            #"(?:charged|billed|amount charged|paid)[^0-9$€£\n]{0,15}?\n?[^0-9$€£\n]{0,10}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#,
+            #"(?:you paid)[^0-9$€£\n]{0,25}?\n?[^0-9$€£\n]{0,10}?[$€£]\s?([0-9][0-9,]*\.?[0-9]{0,2})"#
         ]
         for p in labeledPatterns {
             if let m = firstMatch(p, in: text, group: 1), let d = moneyDecimal(m) {
@@ -360,9 +373,10 @@ enum ReceiptParser {
 
     static func hasLabeledTotal(in text: String) -> Bool {
         let labeledPatterns = [
-            #"(?:total\s+(?:amount|paid|charged|due)?|amount\s+(?:paid|charged|due)|grand\s+total|order\s+total|final\s+total|payment\s+amount|total\s+cost|total\s+fare|ticket\s+total|fare\s+total)[^0-9$€£]{0,25}?[$€£]"#,
-            #"(?:charged|billed|amount charged|paid)[^0-9$€£]{0,15}?[$€£]"#,
-            #"(?:you paid)[^0-9$€£]{0,25}?[$€£]"#
+            #"(?<!sub)\btotal(?:\s+(?:amount|paid|charged|due))?[^0-9$€£\n]{0,25}?\n?[^0-9$€£\n]{0,10}?[$€£]"#,
+            #"(?:amount\s+(?:paid|charged|due)|grand\s+total|order\s+total|final\s+total|payment\s+amount|total\s+cost|total\s+fare|ticket\s+total|fare\s+total)[^0-9$€£\n]{0,25}?\n?[^0-9$€£\n]{0,10}?[$€£]"#,
+            #"(?:charged|billed|amount charged|paid)[^0-9$€£\n]{0,15}?\n?[^0-9$€£\n]{0,10}?[$€£]"#,
+            #"(?:you paid)[^0-9$€£\n]{0,25}?\n?[^0-9$€£\n]{0,10}?[$€£]"#
         ]
         return labeledPatterns.contains { firstMatch($0, in: text) != nil }
     }
@@ -405,7 +419,7 @@ enum ReceiptParser {
     static func cardLast4(in text: String) -> String? {
         let patterns = [
             #"card[^0-9]{0,20}?ending(?: in| with)?[^0-9]{0,6}(\d{4})(?!\d)"#,
-            #"ending in[^0-9]{0,6}(\d{4})(?!\d)"#,
+            #"ending (?:in|with)[^0-9]{0,6}(\d{4})(?!\d)"#,
             #"(?:visa|mastercard|amex|american express|discover)[^0-9]{0,12}?(\d{4})(?!\d)"#,
             #"[\u2022*x]{3,}\s?(\d{4})(?!\d)"#
         ]

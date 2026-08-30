@@ -103,6 +103,10 @@ enum ReceiptParserTests {
             sentDate: d)
         expect(ccPayment.amount == nil, "Credit card debt payment rejected as non-purchase")
 
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Congrats! You paid off your Chase Pay in 4 plan", sender: "Chase <no-reply@chase.com>"),
+            "Pay in 4 payoff excluded in pass A")
+
         // ── Shopify billing: "bill for {X}" ──
         let shopify = ReceiptParser.parse(
             subject: "Aug 13, 2026 bill for Acme Store LLC",
@@ -134,17 +138,28 @@ enum ReceiptParserTests {
             sentDate: d)
         expect(steam.amount == nil, "Steam rejected by exclusion list")
 
-        // ── Swell Labs: "Order #X confirmed" (unknown sender, display-name fallback) ──
+        // ── Swell Labs: "Order #X confirmed" vs Shipment vs $0 Exchange ──
         expect(ReceiptParser.looksLikeReceipt(
-            subject: "Order #955890 confirmed", sender: "Swell Labs <hi@swelllabs.org>"),
+            subject: "Order #953697 confirmed", sender: "Swell Labs <hi@swelllabs.org>"),
             "order-confirmed subject is a receipt candidate")
-        let swell = ReceiptParser.parse(
+        let swellDiscounted = ReceiptParser.parse(
+            subject: "Order #953697 confirmed",
+            sender: "Swell Labs <hi@swelllabs.org>",
+            body: "Order summary\nSubtotal\n$60.00\nOrder discount\n-$18.00\nSUMMER26 (-$18.00)\nShipping\n$0.00\nTotal\n$42.00 USD\nPayment\nending with 1533",
+            sentDate: d)
+        expect(swellDiscounted.amount == Decimal(string: "42.00"), "Swell Labs post-discount total (not subtotal)")
+        expect(swellDiscounted.cardLast4 == "1533", "Swell Labs card last 4 from 'ending with'")
+
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "A shipment from order #953697 is on the way", sender: "Swell Labs <hi@swelllabs.org>"),
+            "Shipment notification excluded in pass A")
+
+        let swellExchange = ReceiptParser.parse(
             subject: "Order #955890 confirmed",
             sender: "Swell Labs <hi@swelllabs.org>",
-            body: "Thanks for your order!\nOrder total: $64.00\nPaid with Mastercard ending in 8812",
+            body: "Order summary\nSubtotal\n$35.00\nOrder discount\n-$35.00\nCustom discount (-$35.00)\nShipping\n$0.00\nTotal\n$0.00 USD",
             sentDate: d)
-        expect(swell.merchant == nil, "unknown sender → merchant nil (collector falls back to display name)")
-        expect(swell.amount == Decimal(string: "64.00"), "Swell Labs order total")
+        expect(swellExchange.amount == nil, "Free exchange ($0.00 total) rejected")
 
         // ── Venmo P2P: "You paid {Person} $X" ──
         let venmo = ReceiptParser.parse(
