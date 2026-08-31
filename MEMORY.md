@@ -10,14 +10,16 @@ Repo: `github.com/tapchipswipe/macsync`. Local: `/Users/lucasdespot/macsync`.
 
 ## Key committed facts
 
-- **Version**: `0.5.2` in `Info.plist` (bump per release).
+- **Version**: `0.5.3` in `Info.plist` (bump per release).
 - **History**: v0.1.0 initial build → v0.2.0 visual overhaul → v0.3.0 context pack part 1
   → v0.3.1 update checker → v0.3.2 Secure Input → v0.3.3 blank-tab fix + focus ring
   → v0.4.0 context pack part 2 (8 new collectors) → v0.5.0 receipts & spending
   → v0.5.1 receipt filter refinements ($0 / decline rejection) → v0.5.2 investment,
   banking, flight alert, and cloud budget exclusion (hard gate on brokerage/trade
   platforms like Public/Robinhood, airline flight status/check-in/SkyMiles alerts,
-  cloud budget thresholds, and banking transfers; 110 tests).
+  cloud budget thresholds, and banking transfers; 110 tests) → v0.5.3 enhanced
+  discounts, shipping update filtering, loan/payoff exclusion, promo rejection,
+  and comprehensive card extraction (CAVA CZ 8031, Shopify cards; 120 tests).
 - **Released via GitHub Releases**: `v0.1.0` … `v0.3.3`, each with `build/macsync.dmg`.
 - **Design language**: dark Vorssaint-like. `AppTheme` lives in
   `Sources/macsync/Dashboard/DashboardView.swift` (menu + dashboard share it).
