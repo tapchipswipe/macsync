@@ -105,10 +105,11 @@ enum ReceiptParser {
     private static let travelNonPurchaseKeywords: [String] = [
         "time to check in", "check in now", "check-in", "boarding pass",
         "flight update", "gate change", "baggage update", "flight status",
-        "trip reminder", "upcoming trip", "skymiles", "mileageplus",
-        "rapid rewards", "frequent flyer", "miles earned", "qualifying miles",
-        "upgrade offer", "upgrade to", "fares starting at", "book now from",
-        "flight alert", "schedule change", "ecredit", "flight credit"
+        "trip reminder", "upcoming trip", "trip details", "flight details",
+        "skymiles", "mileageplus", "rapid rewards", "frequent flyer",
+        "miles earned", "qualifying miles", "upgrade offer", "upgrade to",
+        "fares starting at", "book now from", "flight alert", "schedule change",
+        "ecredit", "flight credit"
     ]
 
     private static let cloudBudgetKeywords: [String] = [

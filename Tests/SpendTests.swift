@@ -83,6 +83,10 @@ enum ReceiptParserTests {
             sentDate: d)
         expect(googleBudget.amount == nil, "Google Cloud budget alert rejected")
 
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "Your ATL > SRQ Trip Details", sender: "Delta Air Lines <DeltaAirLines@t.delta.com>"),
+            "Delta trip details reminder excluded in pass A")
+
         let googleRealInvoice = ReceiptParser.parse(
             subject: "Your Google Workspace invoice is ready",
             sender: "Google Workspace <payments-noreply@google.com>",
