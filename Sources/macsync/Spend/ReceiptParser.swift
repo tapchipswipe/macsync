@@ -206,6 +206,12 @@ enum ReceiptParser {
         // Shipping & tracking status updates (not invoices)
         if shippingTrackingKeywords.contains(where: { subjLC.contains($0) }) { return true }
 
+        // Marketing promo discount subjects (e.g. "$50 off your order?!")
+        let discountPhrases = ["off your order", "off your next", "off your purchase", "off your first", "% off", "dollars off", "save $", "save up to"]
+        if discountPhrases.contains(where: { subjLC.contains($0) }) && !subjLC.contains("receipt") && !subjLC.contains("invoice") {
+            return true
+        }
+
         // User-excluded merchants (e.g. Kart Rising)
         if userExcludedMerchants.contains(where: { subjLC.contains($0) || senderLC.contains($0) }) { return true }
 

@@ -237,6 +237,10 @@ enum ReceiptParserTests {
             body: "This week you saved $12.99 on Turmerry sheets", sentDate: d)
         expect(klaviyo.amount == nil, "klaviyo marketing email rejected")
 
+        expect(!ReceiptParser.looksLikeReceipt(
+            subject: "$50 off your order?!", sender: "Wrangler <news@wrangler.com>"),
+            "Discount promo subject excluded in pass A")
+
         // Sender-sib (Brevo) notification with dollar amount
         let brevo = ReceiptParser.parse(
             subject: "Account notification", sender: "Panther <no-reply@hl.d.sender-sib.com>",
