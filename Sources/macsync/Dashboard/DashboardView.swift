@@ -24,9 +24,15 @@ struct DashboardView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("macsync")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                HStack(spacing: 7) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(LinearGradient(colors: [Color(hex: "#FBBF24"), Color(hex: "#F59E0B")], startPoint: .top, endPoint: .bottom))
+                    Text("LUMEN")
+                        .font(.system(size: 17, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                        .tracking(1.5)
+                }
                 Spacer()
                 Picker("", selection: $range) {
                     ForEach(DashRange.allCases) { Text($0.rawValue).tag($0) }

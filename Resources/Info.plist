@@ -11,7 +11,9 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>macsync</string>
+	<string>Lumen</string>
+	<key>CFBundleDisplayName</key>
+	<string>Lumen</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>

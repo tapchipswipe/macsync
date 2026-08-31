@@ -11,7 +11,7 @@ struct MacsyncApp: App {
         } label: {
             // Health dot (#10): red when a permission is missing or sync failed.
             HStack(spacing: 5) {
-                Image(systemName: appState.isTracking ? "waveform.path.ecg" : "waveform.path.ecg.rectangle")
+                Image(systemName: appState.isTracking ? "bolt.ring.closed" : "bolt.slash")
                     .symbolRenderingMode(.hierarchical)
                     .overlay(alignment: .topTrailing) {
                         if appState.healthIsBad {
@@ -31,7 +31,7 @@ struct MacsyncApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("macsync Dashboard", id: SceneID.dashboard) {
+        Window("Lumen Dashboard", id: SceneID.dashboard) {
             DashboardView()
                 .environmentObject(appState)
         }
