@@ -25,6 +25,29 @@ struct SpendingPacing {
     static let baseline2026: Decimal = Decimal(string: "350.39") ?? 350
 }
 
+struct DaySpendPoint: Identifiable, Codable {
+    var id: Int { day }
+    let day: Int
+    let date: Date
+    let amount: Decimal
+    let cumulativeAmount: Decimal
+    let merchants: [String]
+}
+
+enum SpendFilter: Equatable {
+    case all
+    case deductibleOnly
+    case card(String)
+
+    var label: String {
+        switch self {
+        case .all: return "All Purchases"
+        case .deductibleOnly: return "Tax Deductible Only"
+        case .card(let last4): return "\(CardPortfolio.shortName(for: last4)) Only"
+        }
+    }
+}
+
 /// Aggregated spending view over a set of receipt events (a month, a week,
 /// today). Pure math — unit-testable without any collector.
 struct SpendSummary {
@@ -36,6 +59,7 @@ struct SpendSummary {
     var byMerchant: [String: Decimal] = [:]
     var needsReviewCount = 0
     var pacing: SpendingPacing? = nil
+    var dailyTrajectory: [DaySpendPoint] = []
 
     static let empty = SpendSummary()
 }
@@ -58,7 +82,7 @@ enum SpendStats {
         }
         s.receipts.sort { $0.transactionDate > $1.transactionDate }
 
-        // Calculate Spending Pacing
+        // Calculate Spending Pacing & Daily Trajectory
         let cal = Calendar.current
         let now = Date()
         guard let targetDate = cal.date(byAdding: .month, value: monthOffset, to: now),
@@ -91,6 +115,34 @@ enum SpendStats {
             baselineMonthlyAverage: baseline,
             pacingStatus: status
         )
+
+        // Compute daily spend points and cumulative trajectory
+        var dayMap: [Int: (amount: Decimal, merchants: [String])] = [:]
+        for r in s.receipts {
+            let d = cal.component(.day, from: r.transactionDate)
+            var current = dayMap[d] ?? (0, [])
+            current.amount += r.amount
+            if !current.merchants.contains(r.merchant) { current.merchants.append(r.merchant) }
+            dayMap[d] = current
+        }
+
+        var runningCumulative: Decimal = 0
+        var trajectory: [DaySpendPoint] = []
+        for d in 1...daysElapsed {
+            let dayData = dayMap[d] ?? (0, [])
+            runningCumulative += dayData.amount
+            var comps = cal.dateComponents([.year, .month], from: targetDate)
+            comps.day = d
+            let date = cal.date(from: comps) ?? targetDate
+            trajectory.append(DaySpendPoint(
+                day: d,
+                date: date,
+                amount: dayData.amount,
+                cumulativeAmount: runningCumulative,
+                merchants: dayData.merchants
+            ))
+        }
+        s.dailyTrajectory = trajectory
 
         return s
     }

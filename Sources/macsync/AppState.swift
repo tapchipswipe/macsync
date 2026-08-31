@@ -36,6 +36,8 @@ final class AppState: ObservableObject {
     @Published var selectedSpendMonthOffset: Int = 0 {
         didSet { refreshAggregation() }
     }
+    @Published var selectedSpendFilter: SpendFilter = .all
+    @Published var showBurnRateGraph: Bool = false
     @Published var spendSearchQuery: String = ""
     @Published var subscriptions: SubscriptionSummary = .empty
     @Published var todayEventCount = 0

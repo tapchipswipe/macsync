@@ -599,18 +599,48 @@ extension DashboardView {
                         .font(.system(size: 24, weight: .bold, design: .rounded)).foregroundStyle(.white)
                     Text("total spent").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
                 }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(SpendFormat.amount(spend.deductibleTotal))
-                        .font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(AppTheme.batteryGreen)
-                    Text("tax deductible").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
-                }
-                if let pacing = spend.pacing {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(pacing.pacingStatus.rawValue)
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color(hex: pacing.pacingStatus.colorHex))
-                        Text("Day \(pacing.daysElapsed)/\(pacing.totalDaysInMonth) · \(SpendFormat.amount(pacing.dailyBurnRate))/day").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                Button {
+                    withAnimation(.spring(duration: 0.2)) {
+                        appState.selectedSpendFilter = (appState.selectedSpendFilter == .deductibleOnly ? .all : .deductibleOnly)
                     }
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(SpendFormat.amount(spend.deductibleTotal))
+                            .font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(AppTheme.batteryGreen)
+                        HStack(spacing: 4) {
+                            if appState.selectedSpendFilter == .deductibleOnly {
+                                Image(systemName: "checkmark.circle.fill").font(.system(size: 9)).foregroundStyle(AppTheme.batteryGreen)
+                            }
+                            Text(appState.selectedSpendFilter == .deductibleOnly ? "filtered: deductible" : "tax deductible")
+                                .font(.system(size: 10, weight: appState.selectedSpendFilter == .deductibleOnly ? .bold : .regular))
+                                .foregroundStyle(appState.selectedSpendFilter == .deductibleOnly ? AppTheme.batteryGreen : .white.opacity(0.45))
+                        }
+                    }
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(appState.selectedSpendFilter == .deductibleOnly ? AppTheme.batteryGreen.opacity(0.15) : .clear))
+                }
+                .buttonStyle(.plain)
+
+                if let pacing = spend.pacing {
+                    Button {
+                        withAnimation(.spring(duration: 0.25)) {
+                            appState.showBurnRateGraph.toggle()
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 4) {
+                                Text(pacing.pacingStatus.rawValue)
+                                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color(hex: pacing.pacingStatus.colorHex))
+                                Image(systemName: appState.showBurnRateGraph ? "chevron.up" : "chart.line.uptrend.xyaxis")
+                                    .font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
+                            }
+                            Text("Day \(pacing.daysElapsed)/\(pacing.totalDaysInMonth) · \(SpendFormat.amount(pacing.dailyBurnRate))/day").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                        }
+                        .padding(6)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color(hex: pacing.pacingStatus.colorHex).opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
                 }
                 Spacer()
                 if !appState.subscriptions.activeSubscriptions.isEmpty {
@@ -622,17 +652,41 @@ extension DashboardView {
                 }
             }
 
-            // Cards Breakdown
+            if appState.showBurnRateGraph {
+                DailySpendingChartView(trajectory: spend.dailyTrajectory, baselineMonthly: SpendingPacing.baseline2026)
+            }
+
+            // Cards Breakdown (Click to Filter)
             if !spend.byCard.isEmpty {
                 HStack(spacing: 8) {
                     ForEach(Array(spend.byCard.sorted { $0.value > $1.value }), id: \.key) { card, amt in
-                        HStack(spacing: 5) {
-                            Image(systemName: "creditcard.fill").font(.system(size: 8)).foregroundStyle(AppTheme.accent)
-                            Text(CardPortfolio.shortName(for: card)).font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.white)
-                            Text(SpendFormat.amount(amt)).font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.6))
+                        let isSelected = (appState.selectedSpendFilter == .card(card))
+                        Button {
+                            withAnimation(.spring(duration: 0.2)) {
+                                appState.selectedSpendFilter = isSelected ? .all : .card(card)
+                            }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "creditcard.fill").font(.system(size: 8))
+                                    .foregroundStyle(isSelected ? .white : AppTheme.accent)
+                                Text(CardPortfolio.shortName(for: card)).font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.white)
+                                Text(SpendFormat.amount(amt)).font(.system(size: 9.5)).foregroundStyle(isSelected ? .white.opacity(0.9) : .white.opacity(0.6))
+                            }
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Capsule().fill(isSelected ? AppTheme.accent : AppTheme.window))
+                            .overlay(Capsule().stroke(isSelected ? .white.opacity(0.5) : .clear, lineWidth: 1))
                         }
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(Capsule().fill(AppTheme.window))
+                        .buttonStyle(.plain)
+                    }
+                    if appState.selectedSpendFilter != .all {
+                        Button("Show All") {
+                            withAnimation { appState.selectedSpendFilter = .all }
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Capsule().fill(Color.white.opacity(0.12)))
                     }
                     Spacer()
                 }

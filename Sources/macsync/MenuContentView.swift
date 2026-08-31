@@ -338,7 +338,7 @@ struct MenuContentView: View {
                 .disabled(appState.selectedSpendMonthOffset >= 0)
             }
 
-            // Top Spend & Deductible Totals
+            // Top Spend & Deductible Totals (Interactive Click-to-Filter)
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(SpendFormat.amount(appState.spendMonth.total))
@@ -346,31 +346,63 @@ struct MenuContentView: View {
                     Text("total spent").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
                 }
                 Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(SpendFormat.amount(appState.spendMonth.deductibleTotal))
-                        .font(.system(size: 17, weight: .bold, design: .rounded)).foregroundStyle(AppTheme.batteryGreen)
-                    Text("tax deductible").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                Button {
+                    withAnimation(.spring(duration: 0.2)) {
+                        appState.selectedSpendFilter = (appState.selectedSpendFilter == .deductibleOnly ? .all : .deductibleOnly)
+                    }
+                } label: {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(SpendFormat.amount(appState.spendMonth.deductibleTotal))
+                            .font(.system(size: 17, weight: .bold, design: .rounded)).foregroundStyle(AppTheme.batteryGreen)
+                        HStack(spacing: 4) {
+                            if appState.selectedSpendFilter == .deductibleOnly {
+                                Image(systemName: "checkmark.circle.fill").font(.system(size: 9)).foregroundStyle(AppTheme.batteryGreen)
+                            }
+                            Text(appState.selectedSpendFilter == .deductibleOnly ? "filtered: deductible" : "tax deductible")
+                                .font(.system(size: 10, weight: appState.selectedSpendFilter == .deductibleOnly ? .bold : .regular))
+                                .foregroundStyle(appState.selectedSpendFilter == .deductibleOnly ? AppTheme.batteryGreen : .white.opacity(0.45))
+                        }
+                    }
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(appState.selectedSpendFilter == .deductibleOnly ? AppTheme.batteryGreen.opacity(0.15) : .clear))
                 }
+                .buttonStyle(.plain)
             }
             .padding(13)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(AppTheme.card))
 
-            // Spending Pacing & Velocity Gauge
+            // Spending Pacing & Velocity Gauge (Click to Expand Daily Burn Graph)
             if let pacing = appState.spendMonth.pacing {
-                HStack(spacing: 10) {
-                    Circle().fill(Color(hex: pacing.pacingStatus.colorHex)).frame(width: 8, height: 8)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("\(pacing.pacingStatus.rawValue) Burn Rate")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white)
-                        Text("Day \(pacing.daysElapsed) of \(pacing.totalDaysInMonth) · \(SpendFormat.amount(pacing.dailyBurnRate))/day (Proj: \(SpendFormat.amount(pacing.projectedMonthEndTotal)))")
-                            .font(.system(size: 9.5))
-                            .foregroundStyle(.white.opacity(0.45))
+                Button {
+                    withAnimation(.spring(duration: 0.25)) {
+                        appState.showBurnRateGraph.toggle()
                     }
-                    Spacer()
+                } label: {
+                    HStack(spacing: 10) {
+                        Circle().fill(Color(hex: pacing.pacingStatus.colorHex)).frame(width: 8, height: 8)
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack {
+                                Text("\(pacing.pacingStatus.rawValue) Burn Rate")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                Spacer()
+                                Image(systemName: appState.showBurnRateGraph ? "chevron.up" : "chart.line.uptrend.xyaxis")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.white.opacity(0.6))
+                            }
+                            Text("Day \(pacing.daysElapsed) of \(pacing.totalDaysInMonth) · \(SpendFormat.amount(pacing.dailyBurnRate))/day (Proj: \(SpendFormat.amount(pacing.projectedMonthEndTotal)))")
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.white.opacity(0.45))
+                        }
+                    }
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(hex: pacing.pacingStatus.colorHex).opacity(0.12)))
                 }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(hex: pacing.pacingStatus.colorHex).opacity(0.12)))
+                .buttonStyle(.plain)
+
+                if appState.showBurnRateGraph {
+                    DailySpendingChartView(trajectory: appState.spendMonth.dailyTrajectory, baselineMonthly: SpendingPacing.baseline2026)
+                }
             }
 
             // Subscription Radar Card
@@ -405,24 +437,46 @@ struct MenuContentView: View {
                             }
                         }
                     }
-
-                    if !appState.subscriptions.zombieSubscriptions.isEmpty {
-                        ForEach(appState.subscriptions.zombieSubscriptions) { zombie in
-                            HStack(spacing: 6) {
-                                Image(systemName: "zzz").font(.system(size: 9)).foregroundStyle(.yellow)
-                                Text("Low usage: \(zombie.merchant) (\(SpendFormat.amount(zombie.amount))/mo)")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.yellow.opacity(0.85))
-                                Spacer()
-                            }
-                        }
-                    }
                 }
                 .padding(11)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
             }
 
-            // Search Bar Filter
+            // Card Portfolio Badges (Click to Filter by Card)
+            if !appState.spendMonth.byCard.isEmpty {
+                sectionLabel("BY CARD (CLICK TO FILTER)")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 7) {
+                        ForEach(Array(appState.spendMonth.byCard.sorted { $0.value > $1.value }), id: \.key) { card, amt in
+                            let isSelected = (appState.selectedSpendFilter == .card(card))
+                            Button {
+                                withAnimation(.spring(duration: 0.2)) {
+                                    appState.selectedSpendFilter = isSelected ? .all : .card(card)
+                                }
+                            } label: {
+                                VStack(spacing: 2) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "creditcard.fill").font(.system(size: 8))
+                                            .foregroundStyle(isSelected ? .white : AppTheme.accent)
+                                        Text(CardPortfolio.shortName(for: card))
+                                            .font(.system(size: 10.5, weight: .bold, design: .rounded))
+                                            .foregroundStyle(.white)
+                                    }
+                                    Text(SpendFormat.amount(amt))
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(isSelected ? .white.opacity(0.9) : .white.opacity(0.5))
+                                }
+                                .padding(.horizontal, 9).padding(.vertical, 6)
+                                .background(Capsule().fill(isSelected ? AppTheme.accent : AppTheme.card))
+                                .overlay(Capsule().stroke(isSelected ? .white.opacity(0.5) : .clear, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+
+            // Search Bar & Active Filter Banner
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(.white.opacity(0.4))
                 TextField("Search merchant, card, or note…", text: $appState.spendSearchQuery)
@@ -438,76 +492,77 @@ struct MenuContentView: View {
             .padding(8)
             .background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.card))
 
+            if appState.selectedSpendFilter != .all {
+                HStack {
+                    Label("Filtered by: \(appState.selectedSpendFilter.label)", systemImage: "line.3.horizontal.decrease.circle.fill")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(AppTheme.accent)
+                    Spacer()
+                    Button("Show All") {
+                        withAnimation { appState.selectedSpendFilter = .all }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Capsule().fill(Color.white.opacity(0.12)))
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.accent.opacity(0.15)))
+            }
+
             // Receipts Filtered / Display
             let query = appState.spendSearchQuery.trimmingCharacters(in: .whitespaces).lowercased()
             let filteredReceipts = appState.spendMonth.receipts.filter { r in
-                if query.isEmpty { return true }
-                return r.merchant.lowercased().contains(query) ||
-                       r.category.label.lowercased().contains(query) ||
-                       (r.cardLast4?.contains(query) ?? false) ||
-                       (r.notes?.lowercased().contains(query) ?? false)
+                // 1. Text Search
+                if !query.isEmpty {
+                    let matchesText = r.merchant.lowercased().contains(query) ||
+                           r.category.label.lowercased().contains(query) ||
+                           (r.cardLast4?.contains(query) ?? false) ||
+                           (r.notes?.lowercased().contains(query) ?? false)
+                    if !matchesText { return false }
+                }
+                // 2. SpendFilter
+                switch appState.selectedSpendFilter {
+                case .all:
+                    return true
+                case .deductibleOnly:
+                    return r.category.businessDeductible
+                case .card(let card):
+                    if card == "Direct" || card == "Unknown" {
+                        return r.cardLast4 == nil || r.cardLast4 == "Unknown"
+                    }
+                    return r.cardLast4 == card
+                }
             }
 
             if filteredReceipts.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Image(systemName: "creditcard").font(.system(size: 16)).foregroundStyle(.white.opacity(0.3))
-                    Text(query.isEmpty ? "No receipts tracked for \(SpendStats.monthTitle(for: appState.selectedSpendMonthOffset))." : "No purchases match “\(appState.spendSearchQuery)”.")
+                    Text("No purchases match current filter.")
                         .font(.system(size: 11.5, weight: .medium)).foregroundStyle(.white.opacity(0.8))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
             } else {
-                // Category breakdown
-                let categories = appState.spendMonth.byCategory
-                    .sorted { $0.value > $1.value }
-                    .prefix(5)
-                if !categories.isEmpty && query.isEmpty {
-                    sectionLabel("BY CATEGORY")
-                    VStack(spacing: 7) {
-                        ForEach(Array(categories), id: \.key) { cat, amount in
-                            HStack(spacing: 8) {
-                                Image(systemName: cat.icon).font(.system(size: 10)).foregroundStyle(Color(hex: cat.colorHex))
-                                Text(cat.label).font(.system(size: 11)).foregroundStyle(.white.opacity(0.85))
-                                Spacer()
-                                Text(SpendFormat.amount(amount)).font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.6))
-                            }
-                        }
-                    }
-                    .padding(11)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
-                }
-
-                // Card Portfolio Badges
-                if !appState.spendMonth.byCard.isEmpty && query.isEmpty {
-                    sectionLabel("BY CARD")
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 7) {
-                            ForEach(Array(appState.spendMonth.byCard.sorted { $0.value > $1.value }), id: \.key) { card, amt in
-                                VStack(spacing: 2) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "creditcard.fill").font(.system(size: 8)).foregroundStyle(AppTheme.accent)
-                                        Text(CardPortfolio.shortName(for: card))
-                                            .font(.system(size: 10.5, weight: .bold, design: .rounded))
-                                            .foregroundStyle(.white)
-                                    }
-                                    Text(SpendFormat.amount(amt)).font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
-                                }
-                                .padding(.horizontal, 9).padding(.vertical, 6)
-                                .background(Capsule().fill(AppTheme.card))
-                            }
-                        }
-                    }
-                }
-
                 // Transaction list
                 sectionLabel("PURCHASES (\(filteredReceipts.count))")
                 VStack(spacing: 6) {
-                    ForEach(Array(filteredReceipts.prefix(12))) { r in
+                    ForEach(Array(filteredReceipts.prefix(15))) { r in
                         HStack(spacing: 8) {
                             Image(systemName: r.category.icon).font(.system(size: 10)).foregroundStyle(Color(hex: r.category.colorHex))
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(r.merchant).font(.system(size: 11.5, weight: .medium)).foregroundStyle(.white).lineLimit(1)
+                                HStack(spacing: 4) {
+                                    Text(r.merchant).font(.system(size: 11.5, weight: .medium)).foregroundStyle(.white).lineLimit(1)
+                                    if r.category.businessDeductible {
+                                        Text("Deductible")
+                                            .font(.system(size: 8, weight: .bold))
+                                            .foregroundStyle(AppTheme.batteryGreen)
+                                            .padding(.horizontal, 4).padding(.vertical, 1)
+                                            .background(Capsule().fill(AppTheme.batteryGreen.opacity(0.18)))
+                                    }
+                                }
                                 let cardTag = CardPortfolio.displayName(for: r.cardLast4)
                                 let noteTag = (r.notes != nil) ? " · \(r.notes!)" : ""
                                 Text("\(SpendFormat.shortDate(r.transactionDate)) · \(cardTag)\(noteTag)")
@@ -518,9 +573,11 @@ struct MenuContentView: View {
                                 .font(.system(size: 11.5, design: .rounded)).foregroundStyle(.white.opacity(0.85))
                         }
                         .padding(8)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(AppTheme.card))
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
                     }
                 }
+                .padding(11)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
             }
 
             // Add Purchase Button
@@ -655,19 +712,8 @@ struct MenuContentView: View {
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
-            sectionLabel("CARD PORTFOLIO")
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(["8031", "1533", "9530", "7805", "1244"], id: \.self) { c in
-                    HStack {
-                        Image(systemName: "creditcard.fill").font(.system(size: 10)).foregroundStyle(AppTheme.accent)
-                        Text(CardPortfolio.shortName(for: c)).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.white)
-                        Spacer()
-                        Text("••\(c)").font(.system(size: 10, design: .rounded)).foregroundStyle(.white.opacity(0.45))
-                    }
-                }
-            }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+            sectionLabel("CARD PORTFOLIO & TAX RULES")
+            CardPortfolioEditorView()
 
             sectionLabel("WALLET · SPENDING")
             VStack(alignment: .leading, spacing: 10) {
