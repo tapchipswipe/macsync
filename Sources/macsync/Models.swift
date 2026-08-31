@@ -27,6 +27,16 @@ struct TrackerEvent: Codable {
         case mailStats
         // v0.5.0 receipts & spending
         case receipt
+        // v0.6.0 deep telemetry suite
+        case gitVelocity
+        case cliCommand
+        case thermalState
+        case audioRoute
+        case displayTopology
+        case bluetoothBattery
+        case networkQuality
+        case notificationEvent
+        case diskHygiene
     }
 
     enum Payload: Codable {
@@ -47,6 +57,15 @@ struct TrackerEvent: Codable {
         case appLifecycle(AppLifecyclePayload)
         case mailStats(MailStatsPayload)
         case receipt(ReceiptPayload)
+        case gitVelocity(GitVelocityPayload)
+        case cliCommand(CLICommandPayload)
+        case thermalState(ThermalStatePayload)
+        case audioRoute(AudioRoutePayload)
+        case displayTopology(DisplayTopologyPayload)
+        case bluetoothBattery(BluetoothBatteryPayload)
+        case networkQuality(NetworkQualityPayload)
+        case notificationEvent(NotificationEventPayload)
+        case diskHygiene(DiskHygienePayload)
 
         private enum CodingKeys: String, CodingKey {
             case type
@@ -55,6 +74,9 @@ struct TrackerEvent: Codable {
             case sessionEvent, cameraMicState, nowPlaying, networkContext
             case clipboardMetric, focusModeState, appLifecycle, mailStats
             case receipt
+            case gitVelocity, cliCommand, thermalState, audioRoute
+            case displayTopology, bluetoothBattery, networkQuality
+            case notificationEvent, diskHygiene
         }
 
         private enum PayloadType: String, Codable {
@@ -63,6 +85,9 @@ struct TrackerEvent: Codable {
             case sessionEvent, cameraMicState, nowPlaying, networkContext
             case clipboardMetric, focusModeState, appLifecycle, mailStats
             case receipt
+            case gitVelocity, cliCommand, thermalState, audioRoute
+            case displayTopology, bluetoothBattery, networkQuality
+            case notificationEvent, diskHygiene
         }
 
         init(from decoder: Decoder) throws {
@@ -86,6 +111,15 @@ struct TrackerEvent: Codable {
             case .appLifecycle:    self = .appLifecycle(try c.decode(AppLifecyclePayload.self, forKey: .appLifecycle))
             case .mailStats:       self = .mailStats(try c.decode(MailStatsPayload.self, forKey: .mailStats))
             case .receipt:         self = .receipt(try c.decode(ReceiptPayload.self, forKey: .receipt))
+            case .gitVelocity:     self = .gitVelocity(try c.decode(GitVelocityPayload.self, forKey: .gitVelocity))
+            case .cliCommand:      self = .cliCommand(try c.decode(CLICommandPayload.self, forKey: .cliCommand))
+            case .thermalState:    self = .thermalState(try c.decode(ThermalStatePayload.self, forKey: .thermalState))
+            case .audioRoute:      self = .audioRoute(try c.decode(AudioRoutePayload.self, forKey: .audioRoute))
+            case .displayTopology: self = .displayTopology(try c.decode(DisplayTopologyPayload.self, forKey: .displayTopology))
+            case .bluetoothBattery:self = .bluetoothBattery(try c.decode(BluetoothBatteryPayload.self, forKey: .bluetoothBattery))
+            case .networkQuality:  self = .networkQuality(try c.decode(NetworkQualityPayload.self, forKey: .networkQuality))
+            case .notificationEvent:self = .notificationEvent(try c.decode(NotificationEventPayload.self, forKey: .notificationEvent))
+            case .diskHygiene:     self = .diskHygiene(try c.decode(DiskHygienePayload.self, forKey: .diskHygiene))
             }
         }
 
@@ -109,6 +143,15 @@ struct TrackerEvent: Codable {
             case .appLifecycle(let p):    try c.encode(PayloadType.appLifecycle, forKey: .type);    try c.encode(p, forKey: .appLifecycle)
             case .mailStats(let p):       try c.encode(PayloadType.mailStats, forKey: .type);       try c.encode(p, forKey: .mailStats)
             case .receipt(let p):         try c.encode(PayloadType.receipt, forKey: .type);         try c.encode(p, forKey: .receipt)
+            case .gitVelocity(let p):     try c.encode(PayloadType.gitVelocity, forKey: .type);     try c.encode(p, forKey: .gitVelocity)
+            case .cliCommand(let p):      try c.encode(PayloadType.cliCommand, forKey: .type);      try c.encode(p, forKey: .cliCommand)
+            case .thermalState(let p):    try c.encode(PayloadType.thermalState, forKey: .type);    try c.encode(p, forKey: .thermalState)
+            case .audioRoute(let p):      try c.encode(PayloadType.audioRoute, forKey: .type);      try c.encode(p, forKey: .audioRoute)
+            case .displayTopology(let p): try c.encode(PayloadType.displayTopology, forKey: .type); try c.encode(p, forKey: .displayTopology)
+            case .bluetoothBattery(let p):try c.encode(PayloadType.bluetoothBattery, forKey: .type);try c.encode(p, forKey: .bluetoothBattery)
+            case .networkQuality(let p):  try c.encode(PayloadType.networkQuality, forKey: .type);  try c.encode(p, forKey: .networkQuality)
+            case .notificationEvent(let p):try c.encode(PayloadType.notificationEvent, forKey: .type);try c.encode(p, forKey: .notificationEvent)
+            case .diskHygiene(let p):     try c.encode(PayloadType.diskHygiene, forKey: .type);     try c.encode(p, forKey: .diskHygiene)
             }
         }
     }
@@ -349,6 +392,84 @@ struct ReceiptPayload: Codable, Identifiable {
     let notes: String?
 
     var amountDouble: Double { NSDecimalNumber(decimal: amount).doubleValue }
+}
+
+// MARK: - Novel Telemetry Suite (v0.6.0)
+
+/// Phase 1: Git repository and velocity telemetry.
+struct GitVelocityPayload: Codable {
+    let observedAt: Date
+    let repoName: String
+    let branch: String
+    let uncommittedDiffLines: Int
+    let commitsToday: Int
+}
+
+/// Phase 1: CLI command and debugging telemetry.
+struct CLICommandPayload: Codable {
+    let observedAt: Date
+    let commandName: String
+    let exitCode: Int
+    let durationMs: Int
+    let isBuildOrTest: Bool
+}
+
+/// Phase 1: Thermal state & CPU throttling.
+struct ThermalStatePayload: Codable {
+    let observedAt: Date
+    let thermalLevel: String
+    let cpuUsagePercent: Double
+    let isThrottled: Bool
+}
+
+/// Phase 2: Audio output route and acoustic flow.
+struct AudioRoutePayload: Codable {
+    let observedAt: Date
+    let outputDeviceName: String
+    let isAirPods: Bool
+    let isHeadphones: Bool
+    let volume: Float
+}
+
+/// Phase 2: Display topology & external monitors.
+struct DisplayTopologyPayload: Codable {
+    let observedAt: Date
+    let screenCount: Int
+    let hasExternalDisplay: Bool
+    let primaryResolution: String
+}
+
+/// Phase 2: Bluetooth peripheral battery levels.
+struct BluetoothDeviceBattery: Codable {
+    let name: String
+    let batteryPercent: Int
+}
+
+struct BluetoothBatteryPayload: Codable {
+    let observedAt: Date
+    let devices: [BluetoothDeviceBattery]
+}
+
+/// Phase 3: Network quality & latency.
+struct NetworkQualityPayload: Codable {
+    let observedAt: Date
+    let pingMs: Double
+    let packetLossPercent: Double
+    let qualityGrade: String
+}
+
+/// Phase 3: Notification interruption events.
+struct NotificationEventPayload: Codable {
+    let observedAt: Date
+    let sourceApp: String
+}
+
+/// Phase 3: Disk hygiene & Downloads folder cruft.
+struct DiskHygienePayload: Codable {
+    let observedAt: Date
+    let downloadsSizeGB: Double
+    let staleInstallerCount: Int
+    let freeDiskSpaceGB: Double
 }
 
 // MARK: - Day archive (compiled output)

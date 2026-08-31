@@ -250,3 +250,42 @@ enum MorningBriefingTests {
         expect(brief.yesterdaySpend == Decimal(string: "13.29"), "Morning executive briefing generation")
     }
 }
+
+enum DeepTelemetryTests {
+    static func run() {
+        let now = Date()
+
+        // Phase 1 tests
+        let gitPayload = GitVelocityPayload(observedAt: now, repoName: "macsync", branch: "main", uncommittedDiffLines: 42, commitsToday: 3)
+        let gitEvent = TrackerEvent(ts: now, kind: .gitVelocity, payload: .gitVelocity(gitPayload))
+        let cliPayload = CLICommandPayload(observedAt: now, commandName: "swift test", exitCode: 0, durationMs: 1500, isBuildOrTest: true)
+        let cliEvent = TrackerEvent(ts: now, kind: .cliCommand, payload: .cliCommand(cliPayload))
+        let thermalPayload = ThermalStatePayload(observedAt: now, thermalLevel: "nominal", cpuUsagePercent: 12.5, isThrottled: false)
+        let thermalEvent = TrackerEvent(ts: now, kind: .thermalState, payload: .thermalState(thermalPayload))
+
+        // Phase 2 tests
+        let audioPayload = AudioRoutePayload(observedAt: now, outputDeviceName: "AirPods Pro", isAirPods: true, isHeadphones: true, volume: 0.7)
+        let audioEvent = TrackerEvent(ts: now, kind: .audioRoute, payload: .audioRoute(audioPayload))
+        let displayPayload = DisplayTopologyPayload(observedAt: now, screenCount: 2, hasExternalDisplay: true, primaryResolution: "3840x2160")
+        let displayEvent = TrackerEvent(ts: now, kind: .displayTopology, payload: .displayTopology(displayPayload))
+        let btPayload = BluetoothBatteryPayload(observedAt: now, devices: [BluetoothDeviceBattery(name: "AirPods Pro", batteryPercent: 85)])
+        let btEvent = TrackerEvent(ts: now, kind: .bluetoothBattery, payload: .bluetoothBattery(btPayload))
+
+        // Phase 3 tests
+        let netPayload = NetworkQualityPayload(observedAt: now, pingMs: 14.2, packetLossPercent: 0.0, qualityGrade: "A+")
+        let netEvent = TrackerEvent(ts: now, kind: .networkQuality, payload: .networkQuality(netPayload))
+        let notifPayload = NotificationEventPayload(observedAt: now, sourceApp: "Slack")
+        let notifEvent = TrackerEvent(ts: now, kind: .notificationEvent, payload: .notificationEvent(notifPayload))
+        let diskPayload = DiskHygienePayload(observedAt: now, downloadsSizeGB: 4.2, staleInstallerCount: 2, freeDiskSpaceGB: 120.0)
+        let diskEvent = TrackerEvent(ts: now, kind: .diskHygiene, payload: .diskHygiene(diskPayload))
+
+        let allEvents = [gitEvent, cliEvent, thermalEvent, audioEvent, displayEvent, btEvent, netEvent, notifEvent, diskEvent]
+        let encoded = try! SyncFormat.jsonEncoder.encode(allEvents)
+        let decoded = try! SyncFormat.jsonDecoder.decode([TrackerEvent].self, from: encoded)
+
+        expect(decoded.count == 9, "Deep telemetry suite: 9 collectors Codable serialization roundtrip")
+        expect(gitPayload.branch == "main" && cliPayload.isBuildOrTest && !thermalPayload.isThrottled, "Phase 1: Git, CLI & Thermal telemetry integrity")
+        expect(audioPayload.isAirPods && displayPayload.hasExternalDisplay && btPayload.devices.first?.batteryPercent == 85, "Phase 2: Audio, Display & Bluetooth telemetry integrity")
+        expect(netPayload.qualityGrade == "A+" && notifPayload.sourceApp == "Slack" && diskPayload.staleInstallerCount == 2, "Phase 3: Network Quality, Notification & Disk Hygiene telemetry integrity")
+    }
+}
