@@ -11,7 +11,7 @@ struct MacsyncApp: App {
         } label: {
             // Health dot (#10): red when a permission is missing or sync failed.
             HStack(spacing: 5) {
-                Image(systemName: appState.isTracking ? "bolt.ring.closed" : "bolt.slash")
+                Image(systemName: appState.isTracking ? "bolt.fill" : "bolt.slash.fill")
                     .symbolRenderingMode(.hierarchical)
                     .overlay(alignment: .topTrailing) {
                         if appState.healthIsBad {
