@@ -19,7 +19,7 @@ final class OnboardingWindowController {
             .environmentObject(AppState.shared))
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 420),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = "Welcome to macsync"
+        w.title = "Welcome to Lumen"
         w.contentView = hosting
         w.center()
         w.isReleasedWhenClosed = false
@@ -46,7 +46,7 @@ struct OnboardingView: View {
                 }
                 .frame(width: 52, height: 52)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Welcome to macsync").font(.system(size: 20, weight: .bold, design: .rounded))
+                    Text("Welcome to Lumen").font(.system(size: 20, weight: .bold, design: .rounded))
                     Text("Your private lifelog — data never leaves this Mac.").font(.system(size: 12)).foregroundStyle(.secondary)
                 }
             }
@@ -63,7 +63,7 @@ struct OnboardingView: View {
                      action: { permissions.openLocationSettings() })
             }
 
-            Text("After granting, quit and reopen macsync so macOS applies the new permissions.")
+            Text("After granting, quit and reopen Lumen so macOS applies the new permissions.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
 
             HStack {
@@ -72,7 +72,7 @@ struct OnboardingView: View {
                 Spacer()
                 Button("Get Started") {
                     UserDefaults.standard.set(true, forKey: "macsync.onboarded")
-                    if let w = NSApp.windows.first(where: { $0.title == "Welcome to macsync" }) { w.close() }
+                    if let w = NSApp.windows.first(where: { $0.title == "Welcome to Lumen" }) { w.close() }
                 }
                 .buttonStyle(.borderedProminent).tint(AppTheme.accent)
             }

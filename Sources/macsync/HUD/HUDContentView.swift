@@ -23,7 +23,7 @@ struct HUDContentView: View {
                 Image(systemName: "keyboard.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(AppTheme.tileKey)
-                Text("\(appState.stats.keystrokes) keys")
+                Text("\(max(appState.stats.keystrokes, appState.liveKeystrokes)) keys")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.85))
             }

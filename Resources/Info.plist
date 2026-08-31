@@ -5,9 +5,9 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>macsync</string>
+	<string>Lumen</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.macsync.app</string>
+	<string>com.lumen.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -29,12 +29,12 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>macsync uses AppleScript to read the active tab URL and title from Safari and Chrome for your personal lifelog. No page content is ever collected.</string>
+	<string>Lumen uses AppleScript to read the active tab URL and title from Safari and Chrome for your personal lifelog. No page content is ever collected.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>macsync records periodic location pings so your daily lifelog includes where you were working.</string>
+	<string>Lumen records periodic location pings so your daily lifelog includes where you were working.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>macsync records periodic location pings so your daily lifelog includes where you were working.</string>
+	<string>Lumen records periodic location pings so your daily lifelog includes where you were working.</string>
 	<key>NSFocusStatusUsageDescription</key>
-	<string>macsync reads your Focus status (Do Not Disturb / Work / Personal) so your daily lifelog can show when you were in a Focus state. Only the on/off state is recorded, never the reasons or apps.</string>
+	<string>Lumen reads your Focus status (Do Not Disturb / Work / Personal) so your daily lifelog can show when you were in a Focus state. Only the on/off state is recorded, never the reasons or apps.</string>
 </dict>
 </plist>

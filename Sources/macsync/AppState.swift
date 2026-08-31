@@ -56,6 +56,8 @@ final class AppState: ObservableObject {
     @Published var storageSnapshot: StorageSnapshot = .empty
     @Published var zombieAlerts: [ZombieSubscriptionAlert] = []
     @Published var isHUDVisible: Bool = false
+    @Published var liveKeystrokes: Int = 0
+    @Published var liveClicks: Int = 0
     @Published var spendSearchQuery: String = ""
     @Published var subscriptions: SubscriptionSummary = .empty
     @Published var todayEventCount = 0
@@ -198,6 +200,8 @@ final class AppState: ObservableObject {
         let events = DataStore.shared.events(forDay: day)
         let archived = HistoryLoader.archivedEvents(daysBack: 7)
         stats = TodayAggregator.compute(events: events, archived: archived)
+        liveKeystrokes = max(liveKeystrokes, stats.keystrokes)
+        liveClicks = max(liveClicks, stats.clicks)
         todayStory = DayStoryAggregator.buildStory(events: events)
         spendToday = SpendStats.calculate(events: SpendStats.eventsForToday())
         spendMonth = SpendStats.calculate(events: SpendStats.eventsForMonth(monthOffset: selectedSpendMonthOffset), monthOffset: selectedSpendMonthOffset)
@@ -222,6 +226,11 @@ final class AppState: ObservableObject {
     func toggleHUD() {
         HUDWindowController.shared.toggle()
         isHUDVisible = HUDWindowController.shared.isVisible
+    }
+
+    func recordLiveInput(keystrokes: Int, clicks: Int) {
+        self.liveKeystrokes += keystrokes
+        self.liveClicks += clicks
     }
 
     func refreshSpend() {

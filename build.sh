@@ -17,13 +17,13 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$PROJECT_DIR/build"
-APP_NAME="macsync"
+APP_NAME="Lumen"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 DMG_PATH="$BUILD_DIR/$APP_NAME.dmg"
-BUNDLE_ID="com.macsync.app"
+BUNDLE_ID="com.lumen.app"
 MIN_MACOS="14.0"
 
-echo "==> macsync build"
+echo "==> Lumen build"
 echo "    Project: $PROJECT_DIR"
 
 rm -rf "$BUILD_DIR"
@@ -124,6 +124,11 @@ hdiutil create \
 rm -rf "$DMG_STAGING"
 
 echo ""
+echo "==> Installing to /Applications/$APP_NAME.app"
+rm -rf "/Applications/macsync.app" "/Applications/$APP_NAME.app" 2>/dev/null || true
+cp -R "$APP_BUNDLE" "/Applications/$APP_NAME.app" 2>/dev/null || true
+
+echo ""
 echo "==> BUILD COMPLETE"
-echo "    App: $APP_BUNDLE"
+echo "    App: $APP_BUNDLE (and /Applications/$APP_NAME.app)"
 echo "    DMG: $DMG_PATH ($(du -h "$DMG_PATH" | cut -f1 | tr -d ' '))"

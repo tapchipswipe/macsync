@@ -23,6 +23,7 @@ struct MenuContentView: View {
     @ObservedObject private var updater = UpdateChecker.shared
     @State private var tab: MenuTab = .today
     @State private var showAddReceipt = false
+    @State private var showFocusInspector = false
 
     @AppStorage("macsync.nightPauseEnabled") private var nightPause = false
     @AppStorage("macsync.zipArchives") private var zipArchives = true
@@ -92,25 +93,35 @@ struct MenuContentView: View {
             }
             .padding(.top, 4)
 
-            ZStack {
-                // Focus score ring (#1) around the mark
-                FocusRing(progress: Double(appState.stats.focusScore) / 100.0)
-                    .frame(width: 54, height: 54)
-                if appState.healthIsBad {
-                    Circle().fill(Color.red).frame(width: 7, height: 7)
-                        .offset(x: 24, y: -16)
+            Button {
+                showFocusInspector.toggle()
+            } label: {
+                VStack(spacing: 5) {
+                    ZStack {
+                        // Focus score ring (#1) around the mark
+                        FocusRing(progress: Double(appState.stats.focusScore) / 100.0)
+                            .frame(width: 54, height: 54)
+                        if appState.healthIsBad {
+                            Circle().fill(Color.red).frame(width: 7, height: 7)
+                                .offset(x: 24, y: -16)
+                        }
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(LinearGradient(colors: [Color(hex: "#FBBF24"), Color(hex: "#F59E0B")], startPoint: .top, endPoint: .bottom))
+                    }
+                    Text("LUMEN · \(appState.stats.focusScoreLabel.uppercased())")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .tracking(1)
+                    Text(appState.isTracking ? "recording · click to inspect" : "paused · click to inspect")
+                        .font(.system(size: 9, weight: .medium)).tracking(1.5)
+                        .foregroundStyle(Color(hex: "#FBBF24").opacity(0.7))
                 }
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(LinearGradient(colors: [Color(hex: "#FBBF24"), Color(hex: "#F59E0B")], startPoint: .top, endPoint: .bottom))
             }
-            Text("LUMEN · \(appState.stats.focusScoreLabel.uppercased())")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.9))
-                .tracking(1)
-            Text(appState.isTracking ? "recording" : "paused")
-                .font(.system(size: 9, weight: .medium)).tracking(2)
-                .foregroundStyle(.white.opacity(0.35))
+            .buttonStyle(.plain)
+            .popover(isPresented: $showFocusInspector, arrowEdge: .bottom) {
+                FocusScoreInspectorView()
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 10)
@@ -750,21 +761,9 @@ struct MenuContentView: View {
 
     private var settingsTab: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionLabel("PERMISSIONS")
-            VStack(spacing: 0) {
-                permRow(appState.accessibilityGranted, "Accessibility", "Counts keystrokes & clicks")
-                Divider().background(.white.opacity(0.07))
-                permRow(appState.screenRecordingGranted, "Screen Recording", "Reads window titles")
-            }
-            .padding(.horizontal, 12)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
-            if !appState.accessibilityGranted || !appState.screenRecordingGranted {
-                Button { appState.requestPermissions() } label: {
-                    Label("Request Permissions", systemImage: "lock.open")
-                        .font(.system(size: 12, weight: .semibold)).frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent).tint(AppTheme.accent).controlSize(.regular)
-            }
+            // Unified Permissions & Privacy Hub
+            PermissionsHubView()
+
             sectionLabel("MENU BAR")
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Show active time in menu bar", isOn: Binding(

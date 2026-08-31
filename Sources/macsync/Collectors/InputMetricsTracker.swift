@@ -149,9 +149,21 @@ final class InputMetricsTracker {
         var lastMouseLocation: CGPoint?
     }
 
-    private func incrementKeystroke() { bump { $0.keystrokes += 1 }; noteEventTime() }
-    private func incrementClick()     { bump { $0.clicks += 1 }; noteEventTime() }
-    private func incrementScroll()    { bump { $0.scrolls += 1 }; noteEventTime() }
+    private func incrementKeystroke() {
+        bump { $0.keystrokes += 1 }
+        noteEventTime()
+        DispatchQueue.main.async {
+            AppState.shared.recordLiveInput(keystrokes: 1, clicks: 0)
+        }
+    }
+    private func incrementClick() {
+        bump { $0.clicks += 1 }
+        noteEventTime()
+        DispatchQueue.main.async {
+            AppState.shared.recordLiveInput(keystrokes: 0, clicks: 1)
+        }
+    }
+    private func incrementScroll() { bump { $0.scrolls += 1 }; noteEventTime() }
 
     private func accumulateCursorDistance(to point: CGPoint) {
         bump { state in
