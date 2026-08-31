@@ -60,6 +60,10 @@ final class AppState: ObservableObject {
     @Published var predictedRenewals: [PredictedRenewal] = []
     @Published var audioFlowReport: AudioFlowReport = .empty
     @Published var isHUDVisible: Bool = false
+    @Published var isTurboSweeping: Bool = false
+    @Published var turboSweepProgress: Double = 0.0
+    @Published var turboSweepStepName: String = ""
+    @Published var turboSweepReclaimedSoFar: Int64 = 0
     @Published var liveKeystrokes: Int = 0
     @Published var liveClicks: Int = 0
     @Published var spendSearchQuery: String = ""
@@ -254,36 +258,65 @@ final class AppState: ObservableObject {
         _ = runMasterTurboSweep()
     }
 
-    /// Master 1-Click Zero-Footprint Turbo Sweep: executes all 6 storage optimizations in a single pass.
+    /// Master 1-Click Zero-Footprint Turbo Sweep: executes all 6 storage optimizations in a single pass with live progress reporting.
     func runMasterTurboSweep() -> Int64 {
+        isTurboSweeping = true
+        turboSweepProgress = 0.05
+        turboSweepStepName = "Scanning storage candidates & calculating sizes…"
+        turboSweepReclaimedSoFar = 0
+
         var totalReclaimed: Int64 = 0
 
         // 1. Triage downloads (DMGs, media, stale docs moved to iCloud and evicted)
+        turboSweepProgress = 0.20
+        turboSweepStepName = "Step 1/5: Triaging stale downloads & routing to iCloud…"
         let (_, dlBytes) = DownloadTriageEngine.executeTriage()
         totalReclaimed += dlBytes
+        turboSweepReclaimedSoFar = totalReclaimed
 
         // 2. Evict unpinned iCloud items & backup snapshots
+        turboSweepProgress = 0.45
+        turboSweepStepName = "Step 2/5: Evicting unpinned iCloud files to cloud…"
         let snapshot = iCloudStorageOptimizer.scanStorage()
         for candidate in snapshot.candidates {
             if (candidate.category == .iCloudEvictable || candidate.category == .duplicateFile) && !FolderPinningEngine.isProtectedFromEviction(path: candidate.path) {
                 if iCloudStorageOptimizer.evictItem(atPath: candidate.path) {
                     totalReclaimed += candidate.sizeBytes
+                    turboSweepReclaimedSoFar = totalReclaimed
                 }
             }
         }
 
         // 3. Trim all developer bloat (node_modules, .venv, .build)
+        turboSweepProgress = 0.70
+        turboSweepStepName = "Step 3/5: Trimming developer node_modules & build artifacts…"
         let devBytes = DeveloperProjectTrimmer.trimAllCandidates()
         totalReclaimed += devBytes
+        turboSweepReclaimedSoFar = totalReclaimed
 
         // 4. Resolve conflicted duplicate files
+        turboSweepProgress = 0.85
+        turboSweepStepName = "Step 4/5: Resolving conflicted duplicate cloud files…"
         _ = iCloudSyncRadar.resolveAllConflicts()
 
         // 5. Purge disposable system caches
+        turboSweepProgress = 0.95
+        turboSweepStepName = "Step 5/5: Purging disposable system caches & Xcode DerivedData…"
         let cacheBytes = iCloudStorageOptimizer.purgeUserCaches()
         totalReclaimed += cacheBytes
+        turboSweepReclaimedSoFar = totalReclaimed
 
+        turboSweepProgress = 1.0
+        let formatted = ByteCountFormatter.string(fromByteCount: totalReclaimed, countStyle: .file)
+        turboSweepStepName = "✓ Complete! Reclaimed \(formatted) local disk space."
         refreshStorage()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) { [weak self] in
+            self?.isTurboSweeping = false
+            self?.turboSweepProgress = 0.0
+            self?.turboSweepStepName = ""
+        }
+
         return totalReclaimed
     }
 

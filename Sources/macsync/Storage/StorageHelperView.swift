@@ -83,14 +83,14 @@ public struct StorageHelperView: View {
                     Image(systemName: "bolt.shield.fill")
                         .font(.system(size: 13, weight: .bold))
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(isOptimizing ? "Sweeping & Evicting to Cloud…" : "⚡ 1-Click All-in-One Cloud Turbo Sweep")
+                        Text(appState.isTurboSweeping ? "Sweeping & Evicting to Cloud…" : "⚡ 1-Click All-in-One Cloud Turbo Sweep")
                             .font(.system(size: 11, weight: .bold))
                         Text("Evicts backups, triages downloads, trims dev bloat & clears caches")
                             .font(.system(size: 8.5))
                             .opacity(0.85)
                     }
                     Spacer()
-                    if isOptimizing {
+                    if appState.isTurboSweeping {
                         ProgressView().controlSize(.mini)
                     } else {
                         Image(systemName: "arrow.right.circle.fill")
@@ -113,7 +113,63 @@ public struct StorageHelperView: View {
                 .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
-            .disabled(isOptimizing)
+            .disabled(appState.isTurboSweeping)
+
+            // Live Progress Bar & Step Inspector Card
+            if appState.isTurboSweeping || appState.turboSweepProgress > 0 {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        HStack(spacing: 5) {
+                            ProgressView().controlSize(.mini)
+                            Text(appState.turboSweepStepName.isEmpty ? "Turbo Sweep in progress…" : appState.turboSweepStepName)
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Text("\(Int(appState.turboSweepProgress * 100))%")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color(hex: "#63E6BE"))
+                    }
+
+                    // Custom Multi-Hue Progress Track
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.white.opacity(0.1))
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color(hex: "#3B82F6"), Color(hex: "#63E6BE"), Color(hex: "#FBBF24")],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: max(8, geo.size.width * CGFloat(appState.turboSweepProgress)))
+                        }
+                    }
+                    .frame(height: 6)
+
+                    if appState.turboSweepReclaimedSoFar > 0 {
+                        HStack {
+                            Text("Reclaimed so far:")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.white.opacity(0.45))
+                            Text(ByteCountFormatter.string(fromByteCount: appState.turboSweepReclaimedSoFar, countStyle: .file))
+                                .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color(hex: "#63E6BE"))
+                        }
+                    }
+                }
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color(hex: "#1E2230"))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color(hex: "#3B82F6").opacity(0.3), lineWidth: 1)
+                        )
+                )
+            }
 
             // Segmented Picker for the 6 Storage Tools
             Picker("", selection: $selectedSection) {
@@ -364,12 +420,10 @@ public struct StorageHelperView: View {
     }
 
     private func runMasterSweepAction() {
-        isOptimizing = true
         statusMessage = "Executing 1-Click All-in-One Cloud Turbo Sweep…"
         DispatchQueue.global(qos: .userInitiated).async {
-            let freed = appState.runMasterTurboSweep()
             DispatchQueue.main.async {
-                self.isOptimizing = false
+                let freed = self.appState.runMasterTurboSweep()
                 let freedFormatted = ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)
                 self.statusMessage = "✓ Cloud Turbo Sweep complete: Reclaimed \(freedFormatted)!"
                 self.refreshAllTools()
