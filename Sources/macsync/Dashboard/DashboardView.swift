@@ -64,6 +64,7 @@ struct DashboardView: View {
                 meetingIndicator(todayEvents, stats: s)
                 metricGrid(s)
                 dayStorySection()
+                TimeMachineScrubberView(frames: appState.timeMachineFrames)
                 if !s.activity.isEmpty { activityChart(s) }
                 if !s.categories.isEmpty { categoriesCard(s) }
                 if let app = appHistory.selectedApp {
@@ -73,6 +74,7 @@ struct DashboardView: View {
                 }
                 contextSection(s, events: todayEvents)
                 workspaceSection()
+                FinancialRunwayView(forecast: appState.financialForecast)
                 if !appState.spendToday.receipts.isEmpty { spendSection(appState.spendToday) }
                 insightsCard(s)
                 hardwareRow(s)

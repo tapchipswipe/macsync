@@ -50,8 +50,11 @@ final class AppState: ObservableObject {
     @Published var showSpotlightSearch: Bool = false
     @Published var morningBrief: MorningBrief? = nil
     @Published var taxReport2026: ScheduleCTaxReport = .empty
+    @Published var financialForecast: FinancialForecast = .empty
+    @Published var timeMachineFrames: [TimeMachineFrame] = []
     @Published var workspaceClusters: [WorkspaceCluster] = []
     @Published var zombieAlerts: [ZombieSubscriptionAlert] = []
+    @Published var isHUDVisible: Bool = false
     @Published var spendSearchQuery: String = ""
     @Published var subscriptions: SubscriptionSummary = .empty
     @Published var todayEventCount = 0
@@ -199,6 +202,8 @@ final class AppState: ObservableObject {
         let allReceipts = SpendStats.allReceipts()
         subscriptions = SubscriptionRadar.analyze(receipts: allReceipts)
         taxReport2026 = ScheduleCTaxEngine.generateReport(year: 2026, receipts: allReceipts)
+        financialForecast = FinancialForecaster.computeForecast(spendMonth: spendMonth, taxReport: taxReport2026)
+        timeMachineFrames = TimeMachineEngine.buildTimeline(events: events)
         workspaceClusters = WorkspaceClusterEngine.analyze(events: events)
 
         let yesterdayEvents = archived.first?.events ?? []
@@ -208,6 +213,11 @@ final class AppState: ObservableObject {
             appMap[app.name] = app.seconds
         }
         zombieAlerts = ZombieDetector.detectZombies(subscriptions: subscriptions.activeSubscriptions, appUsage30Days: appMap)
+    }
+
+    func toggleHUD() {
+        HUDWindowController.shared.toggle()
+        isHUDVisible = HUDWindowController.shared.isVisible
     }
 
     func refreshSpend() {

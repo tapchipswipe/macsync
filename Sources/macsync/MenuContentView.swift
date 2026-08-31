@@ -162,6 +162,27 @@ struct MenuContentView: View {
                 }
             }
 
+            // Floating HUD quick button
+            Button {
+                appState.toggleHUD()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "bolt.fill").font(.system(size: 11)).foregroundStyle(Color(hex: "#FBBF24"))
+                    Text(appState.isHUDVisible ? "Hide Floating Glass HUD" : "Show Floating Glass HUD")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Text("HUD")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Capsule().fill(Color.white.opacity(0.08)))
+                }
+                .padding(9)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.05)))
+            }
+            .buttonStyle(.plain)
+
             sectionLabel("TODAY")
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
                 miniTile("keyboard", AppTheme.tileKey, "Keystrokes", "\(appState.stats.keystrokes)")
@@ -528,6 +549,8 @@ struct MenuContentView: View {
             }
             .padding(8)
             .background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.card))
+
+            FinancialRunwayView(forecast: appState.financialForecast)
 
             if appState.selectedSpendFilter != .all {
                 HStack {

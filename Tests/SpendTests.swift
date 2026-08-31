@@ -289,3 +289,30 @@ enum DeepTelemetryTests {
         expect(netPayload.qualityGrade == "A+" && notifPayload.sourceApp == "Slack" && diskPayload.staleInstallerCount == 2, "Phase 3: Network Quality, Notification & Disk Hygiene telemetry integrity")
     }
 }
+
+enum FrontierCore4Tests {
+    static func run() {
+        let now = Date()
+
+        // 1. Financial Forecaster Test
+        let r = ReceiptPayload(id: UUID(), merchant: "Apple", amount: Decimal(string: "6.99")!, currency: "USD", cardLast4: "8031", category: .subscriptions, transactionDate: now, capturedAt: now, source: "mail", mailMessageID: nil, confidence: 1.0, needsReview: false, notes: nil)
+        let spendMonth = SpendStats.calculate(events: [TrackerEvent(ts: now, kind: .receipt, payload: .receipt(r))], monthOffset: 0)
+        let taxReport = ScheduleCTaxEngine.generateReport(year: 2026, receipts: [r])
+        let forecast = FinancialForecaster.computeForecast(spendMonth: spendMonth, taxReport: taxReport, date: now)
+
+        expect(forecast.projectedMonthEndSpend > 0 && forecast.estimatedTaxSavings > 0, "Financial forecaster & live tax savings (28%) computation")
+
+        // 2. Time Machine 24h Scrubber Test
+        let w = WindowFocusPayload(appName: "Xcode", windowTitle: "MacsyncApp.swift", start: now, end: now.addingTimeInterval(300), durationSeconds: 300)
+        let frames = TimeMachineEngine.buildTimeline(events: [TrackerEvent(ts: now, kind: .windowFocus, payload: .windowFocus(w))], date: now)
+        expect(frames.count == 288, "Time Machine 24h timeline discretizes into 288 frames")
+
+        // 3. Lumen Copilot Natural Language Engine Test
+        let stats = TodayAggregator.compute(events: [TrackerEvent(ts: now, kind: .windowFocus, payload: .windowFocus(w))], archived: [])
+        let financeResp = LumenCopilotEngine.ask(query: "How much did Steve spend?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast)
+        let workResp = LumenCopilotEngine.ask(query: "What did I build today?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast)
+        let taxResp = LumenCopilotEngine.ask(query: "What can I deduct on Schedule C?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast)
+
+        expect(financeResp.title.contains("Financial") && workResp.title.contains("Focus") && taxResp.title.contains("Tax"), "Lumen Neural Copilot intent classification & synthesis")
+    }
+}
