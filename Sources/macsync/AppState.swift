@@ -32,6 +32,11 @@ final class AppState: ObservableObject {
     @Published var stats = TodayStats.empty
     @Published var spendToday = SpendSummary.empty
     @Published var spendMonth = SpendSummary.empty
+    @Published var selectedSpendMonthOffset: Int = 0 {
+        didSet { refreshAggregation() }
+    }
+    @Published var spendSearchQuery: String = ""
+    @Published var subscriptions: SubscriptionSummary = .empty
     @Published var todayEventCount = 0
     @Published var lastSyncDate: Date?
     @Published var lastSyncSuccess = false
@@ -153,7 +158,14 @@ final class AppState: ObservableObject {
         let archived = HistoryLoader.archivedEvents(daysBack: 7)
         stats = TodayAggregator.compute(events: events, archived: archived)
         spendToday = SpendStats.calculate(events: SpendStats.eventsForToday())
-        spendMonth = SpendStats.calculate(events: SpendStats.eventsForMonth())
+        spendMonth = SpendStats.calculate(events: SpendStats.eventsForMonth(monthOffset: selectedSpendMonthOffset), monthOffset: selectedSpendMonthOffset)
+
+        let allReceipts = SpendStats.allReceipts()
+        subscriptions = SubscriptionRadar.analyze(receipts: allReceipts)
+    }
+
+    func refreshSpend() {
+        refreshAggregation()
     }
 
     // MARK: - Manual receipts (v0.5.0)

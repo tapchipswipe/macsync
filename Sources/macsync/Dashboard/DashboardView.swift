@@ -553,24 +553,82 @@ extension DashboardView {
 
     func spendSection(_ spend: SpendSummary) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionTitle("SPENDING", "Tracked receipts")
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(SpendFormat.amount(spend.total))
-                        .font(.system(size: 22, weight: .bold, design: .rounded)).foregroundStyle(.white)
-                    Text("total").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+            HStack {
+                sectionTitle("FINANCE & SPENDING", SpendStats.monthTitle(for: appState.selectedSpendMonthOffset))
+                Spacer()
+                HStack(spacing: 8) {
+                    Button {
+                        appState.selectedSpendMonthOffset -= 1
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .padding(5)
+                            .background(Circle().fill(AppTheme.window))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        if appState.selectedSpendMonthOffset < 0 {
+                            appState.selectedSpendMonthOffset += 1
+                        }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(appState.selectedSpendMonthOffset < 0 ? .white.opacity(0.8) : .white.opacity(0.2))
+                            .padding(5)
+                            .background(Circle().fill(AppTheme.window))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(appState.selectedSpendMonthOffset >= 0)
                 }
-                VStack(alignment: .leading, spacing: 4) {
+            }
+
+            HStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(SpendFormat.amount(spend.total))
+                        .font(.system(size: 24, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                    Text("total spent").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                }
+                VStack(alignment: .leading, spacing: 3) {
                     Text(SpendFormat.amount(spend.deductibleTotal))
                         .font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(AppTheme.batteryGreen)
                     Text("tax deductible").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
                 }
+                if let pacing = spend.pacing {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(pacing.pacingStatus.rawValue)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color(hex: pacing.pacingStatus.colorHex))
+                        Text("Day \(pacing.daysElapsed)/\(pacing.totalDaysInMonth) · \(SpendFormat.amount(pacing.dailyBurnRate))/day").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                    }
+                }
                 Spacer()
-                if spend.needsReviewCount > 0 {
-                    Label("\(spend.needsReviewCount) needs review", systemImage: "exclamationmark.circle")
-                        .font(.system(size: 11)).foregroundStyle(.orange)
+                if !appState.subscriptions.activeSubscriptions.isEmpty {
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("\(SpendFormat.amount(appState.subscriptions.monthlyBurnRate))/mo")
+                            .font(.system(size: 14, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                        Text("\(appState.subscriptions.activeSubscriptions.count) Subscriptions (\(SpendFormat.amount(appState.subscriptions.annualBurnRate))/yr)").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                    }
                 }
             }
+
+            // Cards Breakdown
+            if !spend.byCard.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(Array(spend.byCard.sorted { $0.value > $1.value }), id: \.key) { card, amt in
+                        HStack(spacing: 5) {
+                            Image(systemName: "creditcard.fill").font(.system(size: 8)).foregroundStyle(AppTheme.accent)
+                            Text(CardPortfolio.shortName(for: card)).font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.white)
+                            Text(SpendFormat.amount(amt)).font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.6))
+                        }
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Capsule().fill(AppTheme.window))
+                    }
+                    Spacer()
+                }
+            }
+
             if !spend.byCategory.isEmpty {
                 HStack(alignment: .bottom, spacing: 14) {
                     let total = max(NSDecimalNumber(decimal: spend.total).doubleValue, 0.01)

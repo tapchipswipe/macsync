@@ -349,3 +349,55 @@ enum SpendExportTests {
         expect(csv.contains("Chipotle,dining,12.34,USD,9876,no,manual"), "CSV row fields")
     }
 }
+
+enum CardPortfolioTests {
+    static func run() {
+        expect(CardPortfolio.displayName(for: "8031") == "Chase Visa ••8031", "Default 8031 display name")
+        expect(CardPortfolio.shortName(for: "8031") == "Chase Visa", "Default 8031 short name")
+        expect(CardPortfolio.displayName(for: "7805") == "Chase Checking ••7805", "Default 7805 display name")
+        expect(CardPortfolio.displayName(for: nil) == "Direct Web", "Nil card -> Direct Web")
+        expect(CardPortfolio.shortName(for: nil) == "Direct", "Nil card short -> Direct")
+
+        // Custom nickname test
+        CardPortfolio.setNickname("Primary Visa", for: "8031")
+        expect(CardPortfolio.shortName(for: "8031") == "Primary Visa", "Custom nickname override")
+        CardPortfolio.setNickname("", for: "8031") // reset
+    }
+}
+
+enum SubscriptionRadarTests {
+    static func run() {
+        let d = Date()
+        let r1 = ReceiptPayload(id: UUID(), merchant: "Apple", amount: Decimal(string: "6.99")!,
+                                currency: "USD", cardLast4: "8031", category: .subscriptions,
+                                transactionDate: d, capturedAt: d, source: "mail",
+                                mailMessageID: nil, confidence: 1.0, needsReview: false, notes: nil)
+        let r2 = ReceiptPayload(id: UUID(), merchant: "Microsoft", amount: Decimal(string: "19.99")!,
+                                currency: "USD", cardLast4: "8031", category: .software,
+                                transactionDate: d, capturedAt: d, source: "mail",
+                                mailMessageID: nil, confidence: 1.0, needsReview: false, notes: nil)
+
+        let summary = SubscriptionRadar.analyze(receipts: [r1, r2])
+        expect(summary.activeSubscriptions.count == 2, "Subscription count = 2")
+        expect(summary.monthlyBurnRate == Decimal(string: "26.98"), "Monthly burn rate = $26.98")
+        expect(summary.annualBurnRate == Decimal(string: "323.76"), "Annual burn rate = $323.76")
+    }
+}
+
+enum SpendingPacingTests {
+    static func run() {
+        let d = Date()
+        let r = ReceiptPayload(id: UUID(), merchant: "Best Buy", amount: Decimal(string: "200.00")!,
+                               currency: "USD", cardLast4: "8031", category: .shopping,
+                               transactionDate: d, capturedAt: d, source: "manual",
+                               mailMessageID: nil, confidence: 1.0, needsReview: false, notes: nil)
+        let event = TrackerEvent(ts: d, kind: .receipt, payload: .receipt(r))
+        let summary = SpendStats.calculate(events: [event], monthOffset: 0)
+
+        expect(summary.pacing != nil, "Pacing calculation present")
+        if let p = summary.pacing {
+            expect(p.totalDaysInMonth >= 28 && p.totalDaysInMonth <= 31, "Valid total days in month")
+            expect(p.dailyBurnRate > 0, "Daily burn rate > 0")
+        }
+    }
+}
