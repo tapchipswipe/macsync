@@ -62,26 +62,46 @@ struct MenuContentView: View {
         .onAppear {
             appState.refreshPermissionStatus()
             appState.refreshLaunchAtLoginStatus()
-            appState.refreshStats()
-            appState.refreshAggregation()
             appState.nextScheduledSync = appState.scheduler.nextScheduledSync
+        }
+        .sheet(isPresented: $appState.showSpotlightSearch) {
+            SpotlightPaletteView()
         }
     }
 
     // MARK: - Header (centered mark + focus ring #1)
 
     private var header: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 5) {
+            HStack {
+                Spacer()
+                Button {
+                    appState.showSpotlightSearch = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "magnifyingglass").font(.system(size: 9.5))
+                        Text("Search Lifelog").font(.system(size: 10, weight: .semibold))
+                        Text("⌘K").font(.system(size: 8.5, weight: .bold)).padding(.horizontal, 4).padding(.vertical, 1).background(Capsule().fill(Color.white.opacity(0.12)))
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 3.5)
+                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                    .foregroundStyle(.white.opacity(0.85))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            .padding(.top, 4)
+
             ZStack {
                 // Focus score ring (#1) around the mark
                 FocusRing(progress: Double(appState.stats.focusScore) / 100.0)
-                    .frame(width: 56, height: 56)
+                    .frame(width: 54, height: 54)
                 if appState.healthIsBad {
                     Circle().fill(Color.red).frame(width: 7, height: 7)
                         .offset(x: 24, y: -16)
                 }
                 Image(systemName: "waveform.path.ecg")
-                    .font(.system(size: 24, weight: .ultraLight))
+                    .font(.system(size: 22, weight: .ultraLight))
                     .foregroundStyle(.white.opacity(0.95))
             }
             Text("\(appState.stats.focusScore) · \(appState.stats.focusScoreLabel)")
@@ -92,7 +112,7 @@ struct MenuContentView: View {
                 .foregroundStyle(.white.opacity(0.35))
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 16)
+        .padding(.top, 10)
     }
 
     // MARK: - Icon tab strip
@@ -125,6 +145,22 @@ struct MenuContentView: View {
 
     private var todayTab: some View {
         VStack(alignment: .leading, spacing: 14) {
+            if let brief = appState.morningBrief {
+                MorningBriefView(brief: brief)
+            }
+
+            if !appState.zombieAlerts.isEmpty {
+                ForEach(appState.zombieAlerts) { zombie in
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.yellow)
+                        Text(zombie.recommendation).font(.system(size: 10)).foregroundStyle(.yellow.opacity(0.9))
+                        Spacer()
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.yellow.opacity(0.12)))
+                }
+            }
+
             sectionLabel("TODAY")
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
                 miniTile("keyboard", AppTheme.tileKey, "Keystrokes", "\(appState.stats.keystrokes)")
@@ -579,6 +615,35 @@ struct MenuContentView: View {
                 .padding(11)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
             }
+
+            // IRS Schedule-C Tax Engine
+            sectionLabel("IRS SCHEDULE-C TAX ENGINE")
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(SpendFormat.amount(appState.taxReport2026.totalDeductibleAmount))
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.batteryGreen)
+                        Text("2026 Net Deductible (\(appState.taxReport2026.lineItems.count) items)").font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.45))
+                    }
+                    Spacer()
+                }
+                HStack(spacing: 8) {
+                    Button { appState.exportScheduleCTaxCSV() } label: {
+                        Label("Schedule-C CSV", systemImage: "arrow.down.doc.fill")
+                            .font(.system(size: 10.5, weight: .medium))
+                    }
+                    .buttonStyle(.bordered).tint(AppTheme.accent).controlSize(.small)
+
+                    Button { appState.exportCPATaxMarkdown() } label: {
+                        Label("CPA Report", systemImage: "doc.plaintext")
+                            .font(.system(size: 10.5, weight: .medium))
+                    }
+                    .buttonStyle(.bordered).tint(.white.opacity(0.6)).controlSize(.small)
+                }
+            }
+            .padding(11)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
 
             // Add Purchase Button
             Button { showAddReceipt = true } label: {

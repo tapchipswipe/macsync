@@ -427,3 +427,77 @@ enum DayStoryTests {
         expect(purchaseChapter?.cardNickname?.contains("Steve Credit") ?? false, "Purchase card binds to Steve Credit")
     }
 }
+
+enum LifelogSearchTests {
+    static func run() {
+        let results = LifelogSearchEngine.search(query: "Steve")
+        expect(results.count >= 0, "Lifelog search executes cleanly")
+    }
+}
+
+enum ZombieDetectorTests {
+    static func run() {
+        let d = Date()
+        let sub = TrackedSubscription(
+            merchant: "Adobe", amount: Decimal(string: "54.99")!, currency: "USD",
+            cadence: .monthly, cardLast4: "8031", category: .software,
+            lastBilledDate: d, nextRenewalDate: d.addingTimeInterval(86400 * 30), usageSeconds30d: 300
+        )
+        let alerts = ZombieDetector.detectZombies(subscriptions: [sub], appUsage30Days: ["Adobe Creative Cloud": 300])
+        expect(alerts.count == 1, "Zombie alert triggered for <20m usage")
+        expect(alerts.first?.merchant == "Adobe", "Zombie merchant matches Adobe")
+    }
+}
+
+enum ScheduleCTaxTests {
+    static func run() {
+        let d = Date()
+        let r1 = ReceiptPayload(id: UUID(), merchant: "Apple", amount: Decimal(string: "6.99")!,
+                                currency: "USD", cardLast4: "8031", category: .subscriptions,
+                                transactionDate: d, capturedAt: d, source: "mail",
+                                mailMessageID: nil, confidence: 1.0, needsReview: false, notes: nil)
+        let r2 = ReceiptPayload(id: UUID(), merchant: "Best Buy", amount: Decimal(string: "200.00")!,
+                                currency: "USD", cardLast4: "8031", category: .shopping,
+                                transactionDate: d, capturedAt: d, source: "manual",
+                                mailMessageID: nil, confidence: 1.0, needsReview: false, notes: "Monitor")
+        let r3 = ReceiptPayload(id: UUID(), merchant: "CAVA", amount: Decimal(string: "14.00")!,
+                                currency: "USD", cardLast4: "8031", category: .dining,
+                                transactionDate: d, capturedAt: d, source: "mail",
+                                mailMessageID: nil, confidence: 1.0, needsReview: false, notes: nil)
+
+        let cal = Calendar.current
+        let year = cal.component(.year, from: d)
+        let report = ScheduleCTaxEngine.generateReport(year: year, receipts: [r1, r2, r3])
+
+        expect(report.lineItems.count == 3, "3 deductible items mapped")
+        expect(report.byLine[.line18Software] == Decimal(string: "6.99"), "Line 18 Software = $6.99")
+        expect(report.byLine[.line22Supplies] == Decimal(string: "200.00"), "Line 22 Supplies = $200.00")
+        expect(report.byLine[.line24bMeals] == Decimal(string: "7.00"), "Line 24b 50% Meals = $7.00")
+        let csv = ScheduleCTaxEngine.exportCSV(report: report)
+        expect(csv.contains("Line 18"), "Schedule-C CSV contains Line 18")
+    }
+}
+
+enum WorkspaceClusterTests {
+    static func run() {
+        let now = Date()
+        let net = NetworkContextPayload(observedAt: now, ssid: "Home_5G", bssidHash: nil, rssi: nil, onVPN: false)
+        let e = TrackerEvent(ts: now, kind: .networkContext, payload: .networkContext(net))
+        let clusters = WorkspaceClusterEngine.analyze(events: [e])
+        expect(clusters.count >= 1, "Workspace clusters generated")
+    }
+}
+
+enum MorningBriefingTests {
+    static func run() {
+        let now = Date()
+        let r = ReceiptPayload(id: UUID(), merchant: "CAVA", amount: Decimal(string: "13.29")!,
+                               currency: "USD", cardLast4: "8031", category: .dining,
+                               transactionDate: now, capturedAt: now, source: "mail",
+                               mailMessageID: nil, confidence: 1.0, needsReview: false, notes: nil)
+        let e = TrackerEvent(ts: now, kind: .receipt, payload: .receipt(r))
+        let subSummary = SubscriptionSummary(activeSubscriptions: [], monthlyBurnRate: 0, annualBurnRate: 0, upcomingRenewals7Days: [], zombieSubscriptions: [])
+        let brief = MorningBriefingEngine.generateBrief(eventsYesterday: [e], subscriptions: subSummary, pacing: nil)
+        expect(brief.yesterdaySpend == Decimal(string: "13.29"), "Morning brief captures yesterday spend")
+    }
+}

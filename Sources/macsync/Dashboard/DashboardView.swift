@@ -66,6 +66,7 @@ struct DashboardView: View {
                     appsCard(s)
                 }
                 contextSection(s, events: todayEvents)
+                workspaceSection()
                 if !appState.spendToday.receipts.isEmpty { spendSection(appState.spendToday) }
                 insightsCard(s)
                 hardwareRow(s)
@@ -556,6 +557,33 @@ extension DashboardView {
         VStack(alignment: .leading, spacing: 14) {
             sectionTitle("THE DAY STORY", "Automated context narrative")
             DayStoryView(story: appState.todayStory)
+        }
+        .cardStyle()
+    }
+
+    private func workspaceSection() -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("GEOFENCED WORKSPACES", "Location & Network Clustering")
+            if appState.workspaceClusters.isEmpty {
+                Text("No workspace location samples yet.").font(.system(size: 11)).foregroundStyle(.white.opacity(0.4))
+            } else {
+                HStack(spacing: 12) {
+                    ForEach(appState.workspaceClusters.prefix(3)) { cluster in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Image(systemName: cluster.icon).font(.system(size: 11)).foregroundStyle(Color(hex: cluster.colorHex))
+                                Text(cluster.name).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                            }
+                            Text("\(cluster.totalActiveMinutes)m focus · \(cluster.keystrokes) keys (\(Int(cluster.averageCPM)) cpm)").font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
+                            if cluster.totalSpend > 0 {
+                                Text("\(SpendFormat.amount(cluster.totalSpend)) spent").font(.system(size: 9.5, weight: .semibold)).foregroundStyle(Color(hex: "#63E6BE"))
+                            }
+                        }
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(AppTheme.window))
+                    }
+                }
+            }
         }
         .cardStyle()
     }

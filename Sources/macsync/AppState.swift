@@ -38,6 +38,11 @@ final class AppState: ObservableObject {
     }
     @Published var selectedSpendFilter: SpendFilter = .all
     @Published var showBurnRateGraph: Bool = false
+    @Published var showSpotlightSearch: Bool = false
+    @Published var morningBrief: MorningBrief? = nil
+    @Published var taxReport2026: ScheduleCTaxReport = .empty
+    @Published var workspaceClusters: [WorkspaceCluster] = []
+    @Published var zombieAlerts: [ZombieSubscriptionAlert] = []
     @Published var spendSearchQuery: String = ""
     @Published var subscriptions: SubscriptionSummary = .empty
     @Published var todayEventCount = 0
@@ -166,6 +171,16 @@ final class AppState: ObservableObject {
 
         let allReceipts = SpendStats.allReceipts()
         subscriptions = SubscriptionRadar.analyze(receipts: allReceipts)
+        taxReport2026 = ScheduleCTaxEngine.generateReport(year: 2026, receipts: allReceipts)
+        workspaceClusters = WorkspaceClusterEngine.analyze(events: events)
+
+        let yesterdayEvents = archived.first?.events ?? []
+        morningBrief = MorningBriefingEngine.generateBrief(eventsYesterday: yesterdayEvents, subscriptions: subscriptions, pacing: spendMonth.pacing)
+        var appMap: [String: TimeInterval] = [:]
+        for app in stats.apps {
+            appMap[app.name] = app.seconds
+        }
+        zombieAlerts = ZombieDetector.detectZombies(subscriptions: subscriptions.activeSubscriptions, appUsage30Days: appMap)
     }
 
     func refreshSpend() {
@@ -190,6 +205,24 @@ final class AppState: ObservableObject {
 
     func openOnboarding() {
         OnboardingWindowController.shared.show(permissions: permissions)
+    }
+
+    func exportScheduleCTaxCSV() {
+        let csv = ScheduleCTaxEngine.exportCSV(report: taxReport2026)
+        let savePanel = NSSavePanel()
+        savePanel.nameFieldStringValue = "macsync_ScheduleC_\(taxReport2026.year).csv"
+        if savePanel.runModal() == .OK, let url = savePanel.url {
+            try? csv.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+
+    func exportCPATaxMarkdown() {
+        let md = ScheduleCTaxEngine.exportCPAMarkdown(report: taxReport2026)
+        let savePanel = NSSavePanel()
+        savePanel.nameFieldStringValue = "macsync_CPA_Report_\(taxReport2026.year).md"
+        if savePanel.runModal() == .OK, let url = savePanel.url {
+            try? md.write(to: url, atomically: true, encoding: .utf8)
+        }
     }
 
     // MARK: - Night pause (#17)
