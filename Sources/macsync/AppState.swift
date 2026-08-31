@@ -242,15 +242,40 @@ final class AppState: ObservableObject {
     }
 
     func optimizeAllStorage() {
-        for candidate in storageSnapshot.candidates {
-            if candidate.category == .iCloudEvictable || candidate.category == .duplicateFile {
-                _ = iCloudStorageOptimizer.evictItem(atPath: candidate.path)
-            } else if candidate.category == .downloadsArchive {
-                _ = iCloudStorageOptimizer.archiveToCloudAndEvict(sourcePath: candidate.path)
+        _ = runMasterTurboSweep()
+    }
+
+    /// Master 1-Click Zero-Footprint Turbo Sweep: executes all 6 storage optimizations in a single pass.
+    func runMasterTurboSweep() -> Int64 {
+        var totalReclaimed: Int64 = 0
+
+        // 1. Triage downloads (DMGs, media, stale docs moved to iCloud and evicted)
+        let (_, dlBytes) = DownloadTriageEngine.executeTriage()
+        totalReclaimed += dlBytes
+
+        // 2. Evict unpinned iCloud items & backup snapshots
+        let snapshot = iCloudStorageOptimizer.scanStorage()
+        for candidate in snapshot.candidates {
+            if (candidate.category == .iCloudEvictable || candidate.category == .duplicateFile) && !FolderPinningEngine.isProtectedFromEviction(path: candidate.path) {
+                if iCloudStorageOptimizer.evictItem(atPath: candidate.path) {
+                    totalReclaimed += candidate.sizeBytes
+                }
             }
         }
-        _ = iCloudStorageOptimizer.purgeUserCaches()
+
+        // 3. Trim all developer bloat (node_modules, .venv, .build)
+        let devBytes = DeveloperProjectTrimmer.trimAllCandidates()
+        totalReclaimed += devBytes
+
+        // 4. Resolve conflicted duplicate files
+        _ = iCloudSyncRadar.resolveAllConflicts()
+
+        // 5. Purge disposable system caches
+        let cacheBytes = iCloudStorageOptimizer.purgeUserCaches()
+        totalReclaimed += cacheBytes
+
         refreshStorage()
+        return totalReclaimed
     }
 
     func optimizeSpecificCandidate(_ candidate: StorageOptimizationCandidate) {

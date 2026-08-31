@@ -61,6 +61,15 @@ public struct PermissionsHubView: View {
                     isGranted: locGranted,
                     action: { permissions.openLocationSettings() }
                 )
+
+                // 5. Full Disk Access (Storage & Deep Clean)
+                permissionCard(
+                    title: "Full Disk Access",
+                    detail: "Enables zero-footprint storage optimization & protected cache purging",
+                    icon: "internaldrive.fill",
+                    isGranted: permissions.hasFullDiskAccess,
+                    action: { permissions.openFullDiskAccessSettings() }
+                )
             }
 
             if !appState.accessibilityGranted || !appState.screenRecordingGranted {

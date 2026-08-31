@@ -10,6 +10,7 @@ import CoreLocation
 ///   Screen Recording  -> required for window titles via CGWindowList
 ///   Apple Events      -> required for Safari/Chrome tab queries (prompted on first use)
 ///   Location          -> requested via CLLocationManager
+///   Full Disk Access  -> optional for deep cache scrubbing & protected storage offload
 final class PermissionsManager {
 
     // MARK: - Status (read-only, no prompts)
@@ -26,6 +27,12 @@ final class PermissionsManager {
         CLLocationManager().authorizationStatus
     }
 
+    var hasFullDiskAccess: Bool {
+        let home = NSHomeDirectory()
+        let testPath = "\(home)/Library/Safari"
+        return FileManager.default.isReadableFile(atPath: testPath)
+    }
+
     var allCriticalGranted: Bool {
         isAccessibilityTrusted && hasScreenRecording
     }
@@ -33,12 +40,10 @@ final class PermissionsManager {
     // MARK: - Onboarding
 
     /// Runs once on first launch. After the user has been shown the onboarding
-    /// flow, subsequent launches stay silent (permissions are re-checked live
-    /// in the menu, and can be re-requested manually via "Request / Review Permissions…").
+    /// flow, subsequent launches stay silent.
     func runOnboardingIfNeeded(locationTracker: LocationTracker) {
         let onboarded = UserDefaults.standard.bool(forKey: "macsync.onboarded")
         if !onboarded {
-            // First launch only: trigger the system prompts for whatever is missing.
             requestAccessibility()
             requestScreenRecording()
             UserDefaults.standard.set(true, forKey: "macsync.onboarded")
@@ -69,37 +74,10 @@ final class PermissionsManager {
             "tell application \"Google Chrome\" to count of windows"
         ]
         for source in scripts {
-            // Only prompt for browsers that are actually installed.
             let target = source.contains("Safari") ? "com.apple.Safari" : "com.google.Chrome"
             guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: target) != nil else { continue }
             var error: NSDictionary?
             NSAppleScript(source: source)?.executeAndReturnError(&error)
-        }
-    }
-
-    private func showOnboardingAlert() {
-        let alert = NSAlert()
-        alert.messageText = "macsync needs permissions"
-        alert.informativeText = """
-        To build your lifelog, macsync needs:
-
-        • Accessibility — counts keystrokes/clicks (metadata only, never what you type)
-        • Screen Recording — reads window titles
-        • Automation — reads Safari/Chrome tab URLs
-        • Location — periodic location pings
-
-        Grant these in System Settings, then return here. The app keeps running either way.
-        """
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Open Accessibility Settings")
-        alert.addButton(withTitle: "Open Screen Recording Settings")
-        alert.addButton(withTitle: "Later")
-        NSApp.activate(ignoringOtherApps: true)
-        let response = alert.runModal()
-        switch response {
-        case .alertFirstButtonReturn:  openAccessibilitySettings()
-        case .alertSecondButtonReturn: openScreenRecordingSettings()
-        default: break
         }
     }
 
@@ -119,5 +97,9 @@ final class PermissionsManager {
 
     func openLocationSettings() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices")!)
+    }
+
+    func openFullDiskAccessSettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
     }
 }

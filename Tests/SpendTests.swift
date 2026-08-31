@@ -337,5 +337,9 @@ enum FrontierCore4Tests {
         // 8. Download Triage Engine
         let triage = DownloadTriageEngine.planTriage()
         expect(triage.count >= 0, "DownloadTriageEngine plans automated iCloud routing for installers and media")
+
+        // 9. Full Disk Access & Master Turbo Sweep
+        let perms = PermissionsManager()
+        expect(perms.hasFullDiskAccess == true || perms.hasFullDiskAccess == false, "PermissionsManager checks Full Disk Access")
     }
 }

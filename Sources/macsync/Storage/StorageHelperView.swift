@@ -75,6 +75,46 @@ public struct StorageHelperView: View {
                 metricPill(title: "Dev Bloat", value: devBloatTotalFormatted, color: Color(hex: "#F43F5E"))
             }
 
+            // Master 1-Click All-in-One Turbo Sweep Button
+            Button {
+                runMasterSweepAction()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "bolt.shield.fill")
+                        .font(.system(size: 13, weight: .bold))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(isOptimizing ? "Sweeping & Evicting to Cloud…" : "⚡ 1-Click All-in-One Cloud Turbo Sweep")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Evicts backups, triages downloads, trims dev bloat & clears caches")
+                            .font(.system(size: 8.5))
+                            .opacity(0.85)
+                    }
+                    Spacer()
+                    if isOptimizing {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 14))
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: "#3B82F6"), Color(hex: "#4F46E5")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                )
+                .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .disabled(isOptimizing)
+
             // Segmented Picker for the 6 Storage Tools
             Picker("", selection: $selectedSection) {
                 Text("Eviction").tag(0)
@@ -319,6 +359,23 @@ public struct StorageHelperView: View {
                 self.devBloatCandidates = bloat
                 self.radarStatus = radar
                 self.triagePlan = triage
+            }
+        }
+    }
+
+    private func runMasterSweepAction() {
+        isOptimizing = true
+        statusMessage = "Executing 1-Click All-in-One Cloud Turbo Sweep…"
+        DispatchQueue.global(qos: .userInitiated).async {
+            let freed = appState.runMasterTurboSweep()
+            DispatchQueue.main.async {
+                self.isOptimizing = false
+                let freedFormatted = ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)
+                self.statusMessage = "✓ Cloud Turbo Sweep complete: Reclaimed \(freedFormatted)!"
+                self.refreshAllTools()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                    self.statusMessage = nil
+                }
             }
         }
     }
