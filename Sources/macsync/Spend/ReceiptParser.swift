@@ -418,19 +418,20 @@ enum ReceiptParser {
         return text.range(of: "$", options: .literal) != nil ? "USD" : nil
     }
 
-    // MARK: - Card last 4
-
-    /// Matches the common phrasings: "Card ending in 1234", "ending •• 1234",
-    /// "Visa •••• 1234", "•••• 1234", "XXXX 1234", "**** 1234".
     static func cardLast4(in text: String) -> String? {
         let patterns = [
             #"card[^0-9]{0,20}?ending(?: in| with)?[^0-9]{0,6}(\d{4})(?!\d)"#,
             #"ending (?:in|with)[^0-9]{0,6}(\d{4})(?!\d)"#,
             #"(?:visa|mastercard|amex|american express|discover)[^0-9]{0,12}?(\d{4})(?!\d)"#,
-            #"[\u2022*x]{3,}\s?(\d{4})(?!\d)"#
+            #"[\u2022*x]{3,}\s?(\d{4})(?!\d)"#,
+            #"\b[A-Z]{2}\s+(\d{4})\b"#
         ]
         for p in patterns {
-            if let m = firstMatch(p, in: text, group: 1) { return m }
+            if let m = firstMatch(p, in: text, group: 1) {
+                if m != "2024" && m != "2025" && m != "2026" {
+                    return m
+                }
+            }
         }
         return nil
     }

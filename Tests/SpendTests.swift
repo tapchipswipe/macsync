@@ -170,6 +170,15 @@ enum ReceiptParserTests {
         expect(venmo.merchant == "Jackson Wainwright", "Venmo P2P payee as merchant")
         expect(venmo.amount == Decimal(string: "8.00"), "Venmo amount")
 
+        // ── CAVA Order with CZ 8031 payment ──
+        let cava = ReceiptParser.parse(
+            subject: "We've got your order #6191809579",
+            sender: "CAVA <hello@cava.com>",
+            body: "Payment\nCZ 8031\nSubtotal\n$12.25\nTaxes\n$1.04\nYour Total\n$13.29",
+            sentDate: d)
+        expect(cava.amount == Decimal(string: "13.29"), "CAVA total with taxes")
+        expect(cava.cardLast4 == "8031", "CAVA card last 4 from CZ 8031")
+
         // ── Amazon: labeled total + card mask + known sender ──
         let amazon = ReceiptParser.parse(
             subject: "Your Amazon.com order of Toaster Oven",
