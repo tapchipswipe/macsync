@@ -352,8 +352,11 @@ enum SpendExportTests {
 
 enum CardPortfolioTests {
     static func run() {
-        expect(CardPortfolio.displayName(for: "8031") == "Chase Visa ••8031", "Default 8031 display name")
-        expect(CardPortfolio.shortName(for: "8031") == "Chase Visa", "Default 8031 short name")
+        CardPortfolio.resetDefaults()
+        expect(CardPortfolio.displayName(for: "8031") == "Steve Credit ••8031", "Default 8031 display name")
+        expect(CardPortfolio.shortName(for: "8031") == "Steve Credit", "Default 8031 short name")
+        expect(CardPortfolio.displayName(for: "1533") == "Joyce Credit ••1533", "Default 1533 display name")
+        expect(CardPortfolio.displayName(for: "9530") == "Lucas Credit ••9530", "Default 9530 display name")
         expect(CardPortfolio.displayName(for: "7805") == "Chase Checking ••7805", "Default 7805 display name")
         expect(CardPortfolio.displayName(for: nil) == "Direct Web", "Nil card -> Direct Web")
         expect(CardPortfolio.shortName(for: nil) == "Direct", "Nil card short -> Direct")
@@ -372,15 +375,15 @@ enum SubscriptionRadarTests {
                                 currency: "USD", cardLast4: "8031", category: .subscriptions,
                                 transactionDate: d, capturedAt: d, source: "mail",
                                 mailMessageID: nil, confidence: 1.0, needsReview: false, notes: nil)
-        let r2 = ReceiptPayload(id: UUID(), merchant: "Microsoft", amount: Decimal(string: "19.99")!,
-                                currency: "USD", cardLast4: "8031", category: .software,
+        let r2 = ReceiptPayload(id: UUID(), merchant: "Venmo (Gavin)", amount: Decimal(string: "350.00")!,
+                                currency: "USD", cardLast4: "7805", category: .other,
                                 transactionDate: d, capturedAt: d, source: "mail",
                                 mailMessageID: nil, confidence: 1.0, needsReview: false, notes: nil)
 
         let summary = SubscriptionRadar.analyze(receipts: [r1, r2])
-        expect(summary.activeSubscriptions.count == 2, "Subscription count = 2")
-        expect(summary.monthlyBurnRate == Decimal(string: "26.98"), "Monthly burn rate = $26.98")
-        expect(summary.annualBurnRate == Decimal(string: "323.76"), "Annual burn rate = $323.76")
+        expect(summary.activeSubscriptions.count == 1, "Subscription count = 1 (Venmo excluded)")
+        expect(summary.monthlyBurnRate == Decimal(string: "6.99"), "Monthly burn rate = $6.99 (Apple only)")
+        expect(summary.annualBurnRate == Decimal(string: "83.88"), "Annual burn rate = $83.88")
     }
 }
 

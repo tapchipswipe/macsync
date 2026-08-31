@@ -111,10 +111,22 @@ enum SubscriptionRadar {
             let sorted = group.sorted { $0.transactionDate > $1.transactionDate }
             guard let newest = sorted.first else { continue }
 
+            // Hard exclusion: Venmo, P2P transfers, ATMs, and general other are NEVER subscriptions
+            if newest.category == .other ||
+               merchantKey.contains("venmo") ||
+               merchantKey.contains("zelle") ||
+               merchantKey.contains("cash") ||
+               merchantKey.contains("atm") ||
+               merchantKey.contains("gavin") ||
+               merchantKey.contains("wainwright") ||
+               merchantKey.contains("guynn") {
+                continue
+            }
+
             var detectedCadence: BillingCadence? = nil
             var matchedAppName: String? = nil
 
-            // 1. Check known vendor rules
+            // 1. Check known vendor rules (Apple, Netflix, Spotify, etc.)
             for (vendor, info) in knownVendors {
                 if merchantKey.contains(vendor) {
                     detectedCadence = info.cadence
@@ -123,8 +135,8 @@ enum SubscriptionRadar {
                 }
             }
 
-            // 2. Multi-transaction periodicity detection (e.g. 25-35 days apart = monthly)
-            if detectedCadence == nil && sorted.count >= 2 {
+            // 2. Multi-transaction periodicity detection ONLY for software / subscriptions / utilities
+            if detectedCadence == nil && sorted.count >= 2 && (newest.category == .software || newest.category == .subscriptions || newest.category == .utilities) {
                 let d1 = sorted[0].transactionDate
                 let d2 = sorted[1].transactionDate
                 let days = abs(Calendar.current.dateComponents([.day], from: d2, to: d1).day ?? 0)
@@ -137,7 +149,7 @@ enum SubscriptionRadar {
                 }
             }
 
-            // 3. If explicit category is subscriptions, treat as monthly by default
+            // 3. Explicit subscription category
             if detectedCadence == nil && newest.category == .subscriptions {
                 detectedCadence = .monthly
             }

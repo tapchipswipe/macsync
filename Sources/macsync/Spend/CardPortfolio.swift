@@ -7,15 +7,18 @@ enum CardPortfolio {
 
     private static let storageKey = "macsync.cardNicknames"
 
-    /// Default known card bindings inferred from verified statement receipts.
+    /// Primary card bindings requested by the user:
+    /// - 8031: Steve Credit
+    /// - 1533: Joyce Credit
+    /// - 9530: Lucas Credit
+    /// - 7805: Chase Checking
+    /// - 1244: Chase ATM
     static let defaultNicknames: [String: String] = [
-        "8031": "Chase Visa",
+        "8031": "Steve Credit",
+        "1533": "Joyce Credit",
+        "9530": "Lucas Credit",
         "7805": "Chase Checking",
-        "9530": "Chase Prime",
-        "1533": "Everyday Debit",
-        "1244": "Chase ATM",
-        "2211": "Venmo Backup",
-        "4430": "Venmo Balance"
+        "1244": "Chase ATM"
     ]
 
     /// Persistent custom card nicknames.
@@ -35,6 +38,11 @@ enum CardPortfolio {
         }
     }
 
+    /// Resets custom nicknames to standard defaults.
+    static func resetDefaults() {
+        UserDefaults.standard.removeObject(forKey: storageKey)
+    }
+
     /// Sets or updates a custom nickname for a specific card last 4.
     static func setNickname(_ name: String, for cardLast4: String) {
         var current = nicknames
@@ -47,7 +55,7 @@ enum CardPortfolio {
         nicknames = current
     }
 
-    /// Returns the user-friendly display name (e.g. "Chase Visa ••8031" or "Direct Web").
+    /// Returns the user-friendly display name (e.g. "Steve Credit ••8031" or "Direct Web").
     static func displayName(for cardLast4: String?) -> String {
         guard let card = cardLast4?.trimmingCharacters(in: .whitespacesAndNewlines),
               !card.isEmpty, card.lowercased() != "unknown" else {
@@ -62,7 +70,7 @@ enum CardPortfolio {
         return card
     }
 
-    /// Returns the short label for compact UI pills (e.g. "Chase Visa" or "••8031").
+    /// Returns the short label for compact UI pills (e.g. "Steve Credit" or "••8031").
     static func shortName(for cardLast4: String?) -> String {
         guard let card = cardLast4?.trimmingCharacters(in: .whitespacesAndNewlines),
               !card.isEmpty, card.lowercased() != "unknown" else {

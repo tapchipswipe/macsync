@@ -647,6 +647,20 @@ struct MenuContentView: View {
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+            sectionLabel("CARD PORTFOLIO")
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(["8031", "1533", "9530", "7805", "1244"], id: \.self) { c in
+                    HStack {
+                        Image(systemName: "creditcard.fill").font(.system(size: 10)).foregroundStyle(AppTheme.accent)
+                        Text(CardPortfolio.shortName(for: c)).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.white)
+                        Spacer()
+                        Text("••\(c)").font(.system(size: 10, design: .rounded)).foregroundStyle(.white.opacity(0.45))
+                    }
+                }
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+
             sectionLabel("WALLET · SPENDING")
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Capture receipts from Mail", isOn: $receiptCapture)
