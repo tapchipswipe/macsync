@@ -110,7 +110,8 @@ struct SpotlightPaletteView: View {
             stats: appState.stats,
             spendMonth: appState.spendMonth,
             taxReport: appState.taxReport2026,
-            forecast: appState.financialForecast
+            forecast: appState.financialForecast,
+            storage: appState.storageSnapshot
         )
 
         return VStack(alignment: .leading, spacing: 8) {
@@ -139,6 +140,28 @@ struct SpotlightPaletteView: View {
                         Text("•").foregroundStyle(AppTheme.accent)
                         Text(pt).font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
                     }
+                }
+            }
+
+            if let pill = copilot.actionPill {
+                HStack {
+                    Spacer()
+                    Button {
+                        if pill == "Optimize in Cloud" {
+                            appState.optimizeAllStorage()
+                        } else if pill == "Export Schedule-C CSV" {
+                            appState.exportScheduleCTaxCSV()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(pill).font(.system(size: 10, weight: .bold))
+                            Image(systemName: "arrow.right.circle.fill").font(.system(size: 10))
+                        }
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Capsule().fill(AppTheme.accent.opacity(0.2)))
+                        .foregroundStyle(AppTheme.accent)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

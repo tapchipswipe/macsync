@@ -53,6 +53,7 @@ final class AppState: ObservableObject {
     @Published var financialForecast: FinancialForecast = .empty
     @Published var timeMachineFrames: [TimeMachineFrame] = []
     @Published var workspaceClusters: [WorkspaceCluster] = []
+    @Published var storageSnapshot: StorageSnapshot = .empty
     @Published var zombieAlerts: [ZombieSubscriptionAlert] = []
     @Published var isHUDVisible: Bool = false
     @Published var spendSearchQuery: String = ""
@@ -205,6 +206,7 @@ final class AppState: ObservableObject {
         financialForecast = FinancialForecaster.computeForecast(spendMonth: spendMonth, taxReport: taxReport2026)
         timeMachineFrames = TimeMachineEngine.buildTimeline(events: events)
         workspaceClusters = WorkspaceClusterEngine.analyze(events: events)
+        storageSnapshot = iCloudStorageOptimizer.scanStorage()
 
         let yesterdayEvents = archived.first?.events ?? []
         morningBrief = MorningBriefingEngine.generateBrief(eventsYesterday: yesterdayEvents, subscriptions: subscriptions, pacing: spendMonth.pacing)
@@ -222,6 +224,38 @@ final class AppState: ObservableObject {
 
     func refreshSpend() {
         refreshAggregation()
+    }
+
+    func refreshStorage() {
+        storageSnapshot = iCloudStorageOptimizer.scanStorage()
+    }
+
+    func optimizeAllStorage() {
+        for candidate in storageSnapshot.candidates {
+            if candidate.category == .iCloudEvictable || candidate.category == .duplicateFile {
+                _ = iCloudStorageOptimizer.evictItem(atPath: candidate.path)
+            } else if candidate.category == .downloadsArchive {
+                _ = iCloudStorageOptimizer.archiveToCloudAndEvict(sourcePath: candidate.path)
+            }
+        }
+        _ = iCloudStorageOptimizer.purgeUserCaches()
+        refreshStorage()
+    }
+
+    func optimizeSpecificCandidate(_ candidate: StorageOptimizationCandidate) {
+        if candidate.category == .iCloudEvictable || candidate.category == .duplicateFile {
+            _ = iCloudStorageOptimizer.evictItem(atPath: candidate.path)
+        } else if candidate.category == .downloadsArchive {
+            _ = iCloudStorageOptimizer.archiveToCloudAndEvict(sourcePath: candidate.path)
+        } else if candidate.category == .cachePurge {
+            _ = iCloudStorageOptimizer.purgeUserCaches()
+        }
+        refreshStorage()
+    }
+
+    func purgeCaches() {
+        _ = iCloudStorageOptimizer.purgeUserCaches()
+        refreshStorage()
     }
 
     // MARK: - Manual receipts (v0.5.0)

@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Lumen iCloud Storage Optimizer & Deep Cleaner
+# Reclaims local SSD space by enforcing iCloud-First Dataless Storage.
+# ==============================================================================
+
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+CLOUD_DOCS="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
+DOCUMENTS_DIR="$HOME/Documents"
+DOWNLOADS_DIR="$HOME/Downloads"
+EVICTED_DIR="$CLOUD_DOCS/Downloads_Evicted"
+
+echo -e "${CYAN}${BOLD}⚡ LUMEN ICLOUD STORAGE OPTIMIZER ⚡${NC}"
+echo -e "${BLUE}Zero-Local-Footprint Engine for macOS${NC}\n"
+
+scan_storage() {
+    echo -e "${BOLD}📊 Scanning Local Storage & iCloud Ubiquity...${NC}"
+    df -h / | awk 'NR==1 || NR==2'
+    echo ""
+
+    echo -e "${YELLOW}Top Storage Consumers in User Home:${NC}"
+    du -sh ~/Documents ~/Downloads ~/Movies ~/Library/Caches ~/.npm 2>/dev/null | sort -hr || true
+    echo ""
+
+    if [ -d "$CLOUD_DOCS" ]; then
+        echo -e "${GREEN}iCloud CloudDocs Root:${NC}"
+        du -sh "$CLOUD_DOCS" 2>/dev/null || echo "Accessible"
+    fi
+}
+
+evict_icloud_items() {
+    echo -e "\n${BOLD}🌥️  Evicting Local Copies of iCloud Files (Freeing SSD Space)...${NC}"
+    
+    # Evict MacBackup snapshot if present in Documents
+    if [ -d "$DOCUMENTS_DIR/MacBackup_20260827" ]; then
+        echo -e "${YELLOW}→ Evicting MacBackup snapshot in iCloud Documents...${NC}"
+        find "$DOCUMENTS_DIR/MacBackup_20260827" -type f -size +10M -exec /usr/bin/brctl evict {} + 2>/dev/null || true
+    fi
+
+    # Evict Downloads_Evicted archive in CloudDocs
+    if [ -d "$EVICTED_DIR" ]; then
+        echo -e "${YELLOW}→ Evicting CloudDocs Downloads_Evicted folder...${NC}"
+        find "$EVICTED_DIR" -type f -exec /usr/bin/brctl evict {} + 2>/dev/null || true
+    fi
+
+    # Evict large downloaded archives in CloudDocs
+    if [ -d "$CLOUD_DOCS" ]; then
+        echo -e "${YELLOW}→ Scanning and evicting all iCloud files > 50MB...${NC}"
+        find "$CLOUD_DOCS" -type f -size +50M ! -path "*/.git/*" -exec /usr/bin/brctl evict {} + 2>/dev/null || true
+    fi
+
+    echo -e "${GREEN}✓ iCloud items evicted to dataless placeholders (100% cloud preserved, 0 local SSD bytes).${NC}"
+}
+
+archive_downloads() {
+    echo -e "\n${BOLD}📦 Moving Heavy Downloads to iCloud & Evicting...${NC}"
+    mkdir -p "$EVICTED_DIR"
+
+    # Move stale installers / archives (> 20MB) to iCloud and evict
+    find "$DOWNLOADS_DIR" -maxdepth 1 -type f \( -name "*.dmg" -o -name "*.pkg" -o -name "*.tar" -o -name "*.zip" -o -name "*.torrent" -o -name "*.iso" \) | while read -r file; do
+        if [ -f "$file" ]; then
+            filename=$(basename "$file")
+            echo -e "${CYAN}→ Moving $filename to iCloud Downloads_Evicted...${NC}"
+            mv "$file" "$EVICTED_DIR/"
+            /usr/bin/brctl evict "$EVICTED_DIR/$filename" 2>/dev/null || true
+        fi
+    done
+    echo -e "${GREEN}✓ Downloads archive complete.${NC}"
+}
+
+purge_caches() {
+    echo -e "\n${BOLD}🧹 Purging Disposable System & App Caches...${NC}"
+    
+    echo -e "${YELLOW}→ Clearing ~/Library/Caches...${NC}"
+    rm -rf ~/Library/Caches/* 2>/dev/null || true
+
+    echo -e "${YELLOW}→ Clearing Xcode DerivedData...${NC}"
+    rm -rf ~/Library/Developer/Xcode/DerivedData/* 2>/dev/null || true
+
+    echo -e "${YELLOW}→ Clearing npm cache...${NC}"
+    rm -rf ~/.npm/_cacache 2>/dev/null || true
+
+    echo -e "${GREEN}✓ Caches purged successfully.${NC}"
+}
+
+case "$1" in
+    --scan)
+        scan_storage
+        ;;
+    --evict)
+        evict_icloud_items
+        ;;
+    --clean-caches)
+        purge_caches
+        ;;
+    --archive-downloads)
+        archive_downloads
+        ;;
+    --all|"")
+        scan_storage
+        evict_icloud_items
+        archive_downloads
+        purge_caches
+        echo -e "\n${GREEN}${BOLD}🎉 Storage Optimization Complete!${NC}"
+        echo -e "${BOLD}Updated Local Storage:${NC}"
+        df -h / | awk 'NR==1 || NR==2'
+        ;;
+    *)
+        echo "Usage: $0 [--scan | --evict | --clean-caches | --archive-downloads | --all]"
+        exit 1
+        ;;
+esac

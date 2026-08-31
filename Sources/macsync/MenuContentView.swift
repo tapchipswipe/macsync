@@ -724,6 +724,11 @@ struct MenuContentView: View {
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+
+            // Storage Helper & iCloud Optimizer
+            sectionLabel("STORAGE HELPER & ICLOUD OPTIMIZER")
+            StorageHelperView()
+
             if updater.state == .available {
                 HStack(spacing: 10) {
                     Image(systemName: "arrow.down.circle.fill").foregroundStyle(AppTheme.accent)

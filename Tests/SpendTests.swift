@@ -312,7 +312,12 @@ enum FrontierCore4Tests {
         let financeResp = LumenCopilotEngine.ask(query: "How much did Steve spend?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast)
         let workResp = LumenCopilotEngine.ask(query: "What did I build today?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast)
         let taxResp = LumenCopilotEngine.ask(query: "What can I deduct on Schedule C?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast)
+        let storageResp = LumenCopilotEngine.ask(query: "How can I optimize storage on iCloud?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast)
 
-        expect(financeResp.title.contains("Financial") && workResp.title.contains("Focus") && taxResp.title.contains("Tax"), "Lumen Neural Copilot intent classification & synthesis")
+        expect(financeResp.title.contains("Financial") && workResp.title.contains("Focus") && taxResp.title.contains("Tax") && storageResp.title.contains("iCloud"), "Lumen Neural Copilot intent classification & synthesis (including Storage)")
+
+        // 4. iCloud Storage Optimizer Test
+        let snapshot = iCloudStorageOptimizer.scanStorage()
+        expect(snapshot.totalDiskBytes > 0 && snapshot.usedDiskBytes >= 0, "iCloud Storage Optimizer scans system disk usage and ubiquity candidates")
     }
 }

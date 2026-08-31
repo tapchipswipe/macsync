@@ -11,10 +11,33 @@ struct CopilotResponse: Identifiable {
 enum LumenCopilotEngine {
 
     /// Answers natural language questions across the lifelog.
-    static func ask(query: String, stats: TodayStats, spendMonth: SpendSummary, taxReport: ScheduleCTaxReport, forecast: FinancialForecast) -> CopilotResponse {
+    static func ask(
+        query: String,
+        stats: TodayStats,
+        spendMonth: SpendSummary,
+        taxReport: ScheduleCTaxReport,
+        forecast: FinancialForecast,
+        storage: StorageSnapshot = .empty
+    ) -> CopilotResponse {
         let q = query.lowercased()
 
-        // 1. Financial queries
+        // 1. Storage & iCloud Optimization queries
+        if q.contains("storage") || q.contains("space") || q.contains("disk") || q.contains("clean") || q.contains("icloud") || q.contains("offload") || q.contains("evict") {
+            let s = storage.totalDiskBytes > 0 ? storage : iCloudStorageOptimizer.scanStorage()
+            return CopilotResponse(
+                title: "iCloud Storage Optimization",
+                answer: "Your Mac has \(s.freeDiskFormatted) free of \(s.totalDiskFormatted) (\(Int(s.diskUsagePercentage))% capacity). You have \(s.reclaimableFormatted) ready to offload to iCloud.",
+                bulletPoints: [
+                    "iCloud Dataless Eviction: \(s.reclaimableFormatted) reclaimable at 0 bytes local footprint",
+                    "iCloud Offloaded Content: \(s.iCloudEvictedFormatted) stored in cloud",
+                    "Disposable Caches: \(ByteCountFormatter.string(fromByteCount: s.cachePurgeableBytes, countStyle: .file)) purgeable",
+                    "Top Target: \(s.candidates.first?.title ?? "System Application Caches")"
+                ],
+                actionPill: "Optimize in Cloud"
+            )
+        }
+
+        // 2. Financial queries
         if q.contains("spend") || q.contains("cost") || q.contains("card") || q.contains("steve") || q.contains("joyce") || q.contains("cava") {
             let total = spendMonth.total
             let topMerchant = spendMonth.byMerchant.max(by: { $0.value < $1.value })?.key ?? "Apple"
@@ -34,7 +57,7 @@ enum LumenCopilotEngine {
             )
         }
 
-        // 2. Tax / Schedule-C queries
+        // 3. Tax / Schedule-C queries
         if q.contains("tax") || q.contains("deduct") || q.contains("schedule c") || q.contains("write off") {
             return CopilotResponse(
                 title: "Tax & Schedule-C Strategy",
@@ -49,7 +72,7 @@ enum LumenCopilotEngine {
             )
         }
 
-        // 3. Work & Coding Output queries
+        // 4. Work & Coding Output queries
         if q.contains("work") || q.contains("code") || q.contains("built") || q.contains("focus") || q.contains("today") {
             let topApp = stats.apps.first?.name ?? "Xcode"
             return CopilotResponse(
@@ -68,11 +91,11 @@ enum LumenCopilotEngine {
         // Default Synthesis
         return CopilotResponse(
             title: "Lumen Intelligence Brief",
-            answer: "Lumen is actively indexing your daily focus, card transactions, and system telemetry.",
+            answer: "Lumen is actively indexing your daily focus, card transactions, storage telemetry, and iCloud synchronization.",
             bulletPoints: [
                 "Focus Score: \(stats.focusScore) · \(stats.focusScoreLabel)",
                 "Month Spend: \(SpendFormat.amount(spendMonth.total)) · \(forecast.forecastNarrative)",
-                "Verified Deductions: \(SpendFormat.amount(taxReport.totalDeductibleAmount)) (Est. \(SpendFormat.amount(forecast.estimatedTaxSavings)) tax savings)"
+                "Storage Status: \(storage.freeDiskFormatted) free · \(storage.reclaimableFormatted) offloadable to iCloud"
             ],
             actionPill: nil
         )
