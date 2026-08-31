@@ -55,6 +55,10 @@ final class AppState: ObservableObject {
     @Published var workspaceClusters: [WorkspaceCluster] = []
     @Published var storageSnapshot: StorageSnapshot = .empty
     @Published var zombieAlerts: [ZombieSubscriptionAlert] = []
+    @Published var powerSnapshot: PowerSnapshot = .empty
+    @Published var gitCommits: [GitCommitNode] = []
+    @Published var predictedRenewals: [PredictedRenewal] = []
+    @Published var audioFlowReport: AudioFlowReport = .empty
     @Published var isHUDVisible: Bool = false
     @Published var liveKeystrokes: Int = 0
     @Published var liveClicks: Int = 0
@@ -208,9 +212,14 @@ final class AppState: ObservableObject {
 
         let allReceipts = SpendStats.allReceipts()
         subscriptions = SubscriptionRadar.analyze(receipts: allReceipts)
+        predictedRenewals = SubscriptionRenewalCalendar.forecastRenewals(subscriptions: subscriptions.activeSubscriptions, receipts: allReceipts)
         taxReport2026 = ScheduleCTaxEngine.generateReport(year: 2026, receipts: allReceipts)
         financialForecast = FinancialForecaster.computeForecast(spendMonth: spendMonth, taxReport: taxReport2026)
-        timeMachineFrames = TimeMachineEngine.buildTimeline(events: events)
+        
+        powerSnapshot = PowerPacingEngine.captureSnapshot()
+        gitCommits = GitVelocityLinker.scanRecentCommits()
+        timeMachineFrames = TimeMachineEngine.buildTimeline(events: events, gitCommits: gitCommits)
+        audioFlowReport = AudioFlowProfiler.analyzeAudioFlow(events: events)
         workspaceClusters = WorkspaceClusterEngine.analyze(events: events)
         storageSnapshot = iCloudStorageOptimizer.scanStorage()
 

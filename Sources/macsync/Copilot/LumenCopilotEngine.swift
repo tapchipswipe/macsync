@@ -17,11 +17,81 @@ enum LumenCopilotEngine {
         spendMonth: SpendSummary,
         taxReport: ScheduleCTaxReport,
         forecast: FinancialForecast,
-        storage: StorageSnapshot = .empty
+        storage: StorageSnapshot = .empty,
+        power: PowerSnapshot = .empty,
+        renewals: [PredictedRenewal] = [],
+        audioReport: AudioFlowReport = .empty,
+        gitCommits: [GitCommitNode] = []
     ) -> CopilotResponse {
         let q = query.lowercased()
 
-        // 1. Storage & iCloud Optimization queries
+        // 1. Power & Battery queries
+        if q.contains("battery") || q.contains("power") || q.contains("watts") || q.contains("wattage") || q.contains("runway") || q.contains("drain") || q.contains("charging") {
+            let p = power.estimatedRemainingMinutes > 0 ? power : PowerPacingEngine.captureSnapshot()
+            return CopilotResponse(
+                title: "Apple Silicon Power Telemetry",
+                answer: "Your Mac battery is at \(p.batteryPercent)%, \(p.narrative.lowercased()).",
+                bulletPoints: [
+                    "Battery Status: \(p.batteryPercent)% (\(p.runwayFormatted))",
+                    "Estimated SoC Draw: ~\(String(format: "%.1f", p.estimatedWatts))W",
+                    "Thermal State: \(p.thermalState)",
+                    "Battery Cycle Count: \(p.cycleCount) cycles"
+                ],
+                actionPill: "View Power Telemetry"
+            )
+        }
+
+        // 2. Git & Commit queries
+        if q.contains("git") || q.contains("commit") || q.contains("branch") || q.contains("repo") || q.contains("shipped") || q.contains("code changes") {
+            let commits = !gitCommits.isEmpty ? gitCommits : GitVelocityLinker.scanRecentCommits()
+            let count = commits.count
+            let latest = commits.first
+            return CopilotResponse(
+                title: "Git Commit & Output Velocity",
+                answer: "You have shipped \(count) commits across local repositories today.",
+                bulletPoints: [
+                    "Latest Commit: \(latest?.repoName ?? "macsync") · \"\(latest?.message ?? "Initial commit")\"",
+                    "Active Branch: \(latest?.branch ?? "main")",
+                    "Hash: \(latest?.shortHash ?? "e1f03ad")",
+                    "Total Repos Active: \(Set(commits.map { $0.repoName }).count)"
+                ],
+                actionPill: "Scrub in Time Machine"
+            )
+        }
+
+        // 3. Subscription Renewals & Price Hikes
+        if q.contains("renewal") || q.contains("renew") || q.contains("upcoming bill") || q.contains("next charge") || q.contains("subscription") || q.contains("hike") {
+            let nextSub = renewals.first
+            let imminentCount = renewals.filter { $0.isImminent }.count
+            return CopilotResponse(
+                title: "Subscription Renewal Radar",
+                answer: "You have \(renewals.count) recurring subscriptions scheduled for renewal over the next 30 days.",
+                bulletPoints: [
+                    "Next Upcoming Charge: \(nextSub?.merchant ?? "None") (\(nextSub?.amountFormatted ?? "$0.00")) on \(nextSub?.renewalRelativeFormatted ?? "soon")",
+                    "Imminent Renewals (<= 3 days): \(imminentCount) services",
+                    "Monthly Recurring SaaS Total: \(SpendFormat.amount(spendMonth.byCategory[.software] ?? 0))",
+                    "Price Hike Alerts: \(renewals.filter { $0.isPriceHike }.count) detected"
+                ],
+                actionPill: "Inspect Renewals"
+            )
+        }
+
+        // 4. Music & Audio Flow correlation
+        if q.contains("music") || q.contains("song") || q.contains("audio") || q.contains("spotify") || q.contains("soundtrack") || q.contains("flow") || q.contains("artist") {
+            return CopilotResponse(
+                title: "Soundtrack to Deep Work",
+                answer: audioReport.summary,
+                bulletPoints: [
+                    "Top Productivity Audio: \(audioReport.topTracks.first?.title ?? "Ambient Flow")",
+                    "Top Artist: \(audioReport.topArtist)",
+                    "Typing Speed Boost: +\(audioReport.flowStateVelocityBoostPercent)% keystroke velocity",
+                    "Correlated Focus Score: \(audioReport.topTracks.first?.avgFocusScore ?? 90)/100"
+                ],
+                actionPill: "View Flow Insights"
+            )
+        }
+
+        // 5. Storage & iCloud Optimization queries
         if q.contains("storage") || q.contains("space") || q.contains("disk") || q.contains("clean") || q.contains("icloud") || q.contains("offload") || q.contains("evict") {
             let s = storage.totalDiskBytes > 0 ? storage : iCloudStorageOptimizer.scanStorage()
             return CopilotResponse(
@@ -37,7 +107,7 @@ enum LumenCopilotEngine {
             )
         }
 
-        // 2. Financial queries
+        // 6. Financial queries
         if q.contains("spend") || q.contains("cost") || q.contains("card") || q.contains("steve") || q.contains("joyce") || q.contains("cava") {
             let total = spendMonth.total
             let topMerchant = spendMonth.byMerchant.max(by: { $0.value < $1.value })?.key ?? "Apple"
@@ -57,7 +127,7 @@ enum LumenCopilotEngine {
             )
         }
 
-        // 3. Tax / Schedule-C queries
+        // 7. Tax / Schedule-C queries
         if q.contains("tax") || q.contains("deduct") || q.contains("schedule c") || q.contains("write off") {
             return CopilotResponse(
                 title: "Tax & Schedule-C Strategy",
@@ -72,7 +142,7 @@ enum LumenCopilotEngine {
             )
         }
 
-        // 4. Work & Coding Output queries
+        // 8. Work & Coding Output queries
         if q.contains("work") || q.contains("code") || q.contains("built") || q.contains("focus") || q.contains("today") {
             let topApp = stats.apps.first?.name ?? "Xcode"
             return CopilotResponse(
@@ -95,7 +165,8 @@ enum LumenCopilotEngine {
             bulletPoints: [
                 "Focus Score: \(stats.focusScore) · \(stats.focusScoreLabel)",
                 "Month Spend: \(SpendFormat.amount(spendMonth.total)) · \(forecast.forecastNarrative)",
-                "Storage Status: \(storage.freeDiskFormatted) free · \(storage.reclaimableFormatted) offloadable to iCloud"
+                "Storage Status: \(storage.freeDiskFormatted) free · \(storage.reclaimableFormatted) offloadable to iCloud",
+                "Apple Silicon Power: \(power.batteryPercent)% · \(power.runwayFormatted)"
             ],
             actionPill: nil
         )

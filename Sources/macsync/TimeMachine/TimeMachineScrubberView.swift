@@ -55,6 +55,16 @@ struct TimeMachineScrubberView: View {
 
                     Spacer()
 
+                    if let git = frame.gitCommit {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.triangle.branch")
+                            Text(git)
+                        }
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundStyle(Color(hex: "#FBBF24"))
+                        .lineLimit(1)
+                    }
+
                     if frame.keystrokes > 0 {
                         Text("\(frame.keystrokes) keys")
                             .font(.system(size: 10, weight: .medium))

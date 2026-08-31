@@ -240,6 +240,9 @@ struct MenuContentView: View {
                     .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
             }
 
+            // Apple Silicon Power & Battery Runway
+            BatteryRunwayCardView()
+
             Button { openWindow(id: SceneID.dashboard) } label: {
                 Label("Open Full Dashboard", systemImage: "chart.xyaxis.line")
                     .font(.system(size: 12, weight: .semibold))
@@ -354,6 +357,9 @@ struct MenuContentView: View {
                 .padding(11)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
             }
+
+            // Soundtrack to Deep Work Audio Flow Insight
+            AudioFlowInsightView()
         }
     }
 
@@ -510,6 +516,9 @@ struct MenuContentView: View {
                 .padding(11)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
             }
+
+            // 30-Day Predictive Renewal Calendar & Price Hike Radar
+            SubscriptionRenewalCalendarView()
 
             // Card Portfolio Badges (Click to Filter by Card)
             if !appState.spendMonth.byCard.isEmpty {

@@ -111,7 +111,11 @@ struct SpotlightPaletteView: View {
             spendMonth: appState.spendMonth,
             taxReport: appState.taxReport2026,
             forecast: appState.financialForecast,
-            storage: appState.storageSnapshot
+            storage: appState.storageSnapshot,
+            power: appState.powerSnapshot,
+            renewals: appState.predictedRenewals,
+            audioReport: appState.audioFlowReport,
+            gitCommits: appState.gitCommits
         )
 
         return VStack(alignment: .leading, spacing: 8) {

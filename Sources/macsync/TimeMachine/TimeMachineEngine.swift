@@ -12,20 +12,21 @@ struct TimeMachineFrame: Identifiable {
     let wifiSSID: String?
     let purchaseAmount: Decimal?
     let purchaseMerchant: String?
+    let gitCommit: String?
     let intensity: Double
 }
 
 enum TimeMachineEngine {
 
     /// Discretizes events into 5-minute frames across 24 hours (288 frames).
-    static func buildTimeline(events: [TrackerEvent], date: Date = Date()) -> [TimeMachineFrame] {
+    static func buildTimeline(events: [TrackerEvent], gitCommits: [GitCommitNode] = [], date: Date = Date()) -> [TimeMachineFrame] {
         let cal = Calendar.current
-        var frameMap: [Int: (app: String?, title: String?, keys: Int, inCall: Bool, music: String?, wifi: String?, spend: Decimal?, merchant: String?)] = [:]
+        var frameMap: [Int: (app: String?, title: String?, keys: Int, inCall: Bool, music: String?, wifi: String?, spend: Decimal?, merchant: String?, git: String?)] = [:]
 
         // Prepopulate 288 five-minute frames
         for frameIndex in 0..<288 {
             let minute = frameIndex * 5
-            frameMap[minute] = (nil, nil, 0, false, nil, nil, nil, nil)
+            frameMap[minute] = (nil, nil, 0, false, nil, nil, nil, nil, nil)
         }
 
         var currentSSID: String? = nil
@@ -36,7 +37,7 @@ enum TimeMachineEngine {
             let minute = (cal.component(.hour, from: e.ts) * 60) + cal.component(.minute, from: e.ts)
             let frameMinute = (minute / 5) * 5
 
-            var frame = frameMap[frameMinute] ?? (nil, nil, 0, false, nil, nil, nil, nil)
+            var frame = frameMap[frameMinute] ?? (nil, nil, 0, false, nil, nil, nil, nil, nil)
 
             switch e.payload {
             case .windowFocus(let w):
@@ -67,10 +68,19 @@ enum TimeMachineEngine {
             frameMap[frameMinute] = frame
         }
 
+        // Map Git Commits
+        for commit in gitCommits {
+            let frameMinute = (commit.minuteOfDay / 5) * 5
+            if var frame = frameMap[frameMinute] {
+                frame.git = "\(commit.repoName) · \(commit.message)"
+                frameMap[frameMinute] = frame
+            }
+        }
+
         var result: [TimeMachineFrame] = []
         for frameIndex in 0..<288 {
             let minute = frameIndex * 5
-            let data = frameMap[minute] ?? (nil, nil, 0, false, nil, nil, nil, nil)
+            let data = frameMap[minute] ?? (nil, nil, 0, false, nil, nil, nil, nil, nil)
 
             let h = minute / 60
             let m = minute % 60
@@ -80,6 +90,7 @@ enum TimeMachineEngine {
             if data.keys > 0 { intensity += min(1.0, Double(data.keys) / 100.0) * 0.7 }
             if data.app != nil { intensity += 0.3 }
             if data.inCall { intensity += 0.4 }
+            if data.git != nil { intensity += 0.5 }
 
             result.append(TimeMachineFrame(
                 minuteOfDay: minute,
@@ -92,6 +103,7 @@ enum TimeMachineEngine {
                 wifiSSID: data.wifi,
                 purchaseAmount: data.spend,
                 purchaseMerchant: data.merchant,
+                gitCommit: data.git,
                 intensity: min(1.0, intensity)
             ))
         }

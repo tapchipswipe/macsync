@@ -75,7 +75,10 @@ struct DashboardView: View {
                 contextSection(s, events: todayEvents)
                 workspaceSection()
                 FinancialRunwayView(forecast: appState.financialForecast)
+                SubscriptionRenewalCalendarView()
                 StorageHelperView()
+                BatteryRunwayCardView()
+                AudioFlowInsightView()
                 if !appState.spendToday.receipts.isEmpty { spendSection(appState.spendToday) }
                 insightsCard(s)
                 hardwareRow(s)

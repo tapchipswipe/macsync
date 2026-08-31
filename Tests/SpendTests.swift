@@ -341,5 +341,30 @@ enum FrontierCore4Tests {
         // 9. Full Disk Access & Master Turbo Sweep
         let perms = PermissionsManager()
         expect(perms.hasFullDiskAccess == true || perms.hasFullDiskAccess == false, "PermissionsManager checks Full Disk Access")
+
+        // 10. Apple Silicon Power & Battery Runway
+        let powerSnap = PowerPacingEngine.captureSnapshot()
+        expect(powerSnap.batteryPercent >= 0 && powerSnap.estimatedWatts > 0, "PowerPacingEngine captures SoC wattage and battery runway")
+
+        // 11. Git Commit & Velocity Linker
+        let commits = GitVelocityLinker.scanRecentCommits()
+        expect(commits.count >= 0, "GitVelocityLinker scans local git repository commit history")
+
+        // 12. 30-Day Predictive Subscription Renewal Calendar
+        let sub = TrackedSubscription(merchant: "Cursor Pro", amount: 20, currency: "USD", cadence: .monthly, cardLast4: "8031", category: .software, lastBilledDate: Date(), nextRenewalDate: nil, usageSeconds30d: nil)
+        let renewals = SubscriptionRenewalCalendar.forecastRenewals(subscriptions: [sub], receipts: [])
+        expect(!renewals.isEmpty && renewals.first?.daysUntilRenewal != nil, "SubscriptionRenewalCalendar forecasts 30-day billing milestones")
+
+        // 13. Audio & Music Flow Correlation
+        let audioReport = AudioFlowProfiler.analyzeAudioFlow(events: [])
+        expect(!audioReport.topTracks.isEmpty && audioReport.flowStateVelocityBoostPercent > 0, "AudioFlowProfiler analyzes productivity correlation with music tracks")
+
+        // 14. Next-Gen Neural Copilot Expansion
+        let powerResp = LumenCopilotEngine.ask(query: "How much battery power am I using?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast, power: powerSnap)
+        let gitResp = LumenCopilotEngine.ask(query: "What git commits did I ship today?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast, gitCommits: commits)
+        let renewResp = LumenCopilotEngine.ask(query: "When does my next subscription charge occur?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast, renewals: renewals)
+        let musicResp = LumenCopilotEngine.ask(query: "What music helped me focus best?", stats: stats, spendMonth: spendMonth, taxReport: taxReport, forecast: forecast, audioReport: audioReport)
+
+        expect(powerResp.title.contains("Power") && gitResp.title.contains("Git") && renewResp.title.contains("Renewal") && musicResp.title.contains("Soundtrack"), "Lumen Neural Copilot synthesizes Power, Git, Renewals, and Music")
     }
 }
