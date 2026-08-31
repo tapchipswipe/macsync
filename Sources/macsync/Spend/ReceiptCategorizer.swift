@@ -7,16 +7,16 @@ enum ReceiptCategorizer {
     // MARK: - Keyword rules
 
     private static let rules: [(category: ReceiptCategory, needles: [String])] = [
-        (.dining, ["starbucks", "chipotle", "dunkin", "doordash", "uber eats", "grubhub", "cava", "sweetgreen", "shakeshack", "chipotle", "mcdonald", "wendy", "panera"]),
+        (.dining, ["starbucks", "chipotle", "dunkin", "doordash", "uber eats", "grubhub", "cava", "sweetgreen", "shakeshack", "mcdonald", "wendy", "panera"]),
         (.groceries, ["walmart", "target", "costco", "trader joe", "whole foods", "kroger", "safeway", "aldi", "wegmans", "stop & shop", "instacart"]),
-        (.software, ["adobe", "github", "figma", "notion", "canva", "microsoft", "steam", "epic games", "playstation", "nintendo", "jetbrains", "linear"]),
+        (.software, ["adobe", "github", "figma", "notion", "canva", "microsoft", "epic games", "playstation", "nintendo", "jetbrains", "linear", "cline bot", "retell"]),
         (.subscriptions, ["netflix", "spotify", "hulu", "disney+", "hbomax", "max", "peacock", "paramount+", "apple", "youtube premium", "amazon prime"]),
         (.travel, ["delta", "southwest", "united", "american airlines", "airbnb", "hotels.com", "booking.com", "expedia", "marriott", "hilton", "airline"]),
         (.transport, ["uber", "lyft", "grab", "bolt", "trainline", "amtrak", "gas station", "shell", "chevron", "exxon"]),
         (.utilities, ["xfinity", "comcast", "verizon", "t-mobile", "att", "at&t", "duke energy", "coned", "pseg", "water", "electric"]),
-        (.health, ["cvs", "walgreens", "planet fitness", "equinox", "pharmacy", "doctor", "dental", "hospital"]),
-        (.education, ["coursera", "udemy", "skillshare", "masterclass", "udacity", "saint anselm", "textbook", "tuition"]),
-        (.shopping, ["amazon", "best buy", "nike", "adidas", "zara", "uniqlo", "etsy", "ebay", "shein", "apparel", "clothing"])
+        (.health, ["cvs", "walgreens", "planet fitness", "equinox", "pharmacy", "doctor", "dental", "hospital", "rythm health", "marrs ear", "marrs"]),
+        (.education, ["coursera", "udemy", "skillshare", "masterclass", "udacity", "saint anselm", "textbook", "tuition", "florida school of insurance"]),
+        (.shopping, ["amazon", "best buy", "nike", "adidas", "zara", "uniqlo", "etsy", "ebay", "shein", "apparel", "clothing", "fat and the moon", "project cloud", "swell labs", "latex mattress", "charles tyrwhitt", "ctshirts"])
     ]
 
     // MARK: - User overrides

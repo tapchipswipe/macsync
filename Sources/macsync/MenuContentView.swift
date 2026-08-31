@@ -338,7 +338,8 @@ struct MenuContentView: View {
                         ForEach(Array(appState.spendMonth.byCard.sorted { $0.value > $1.value }), id: \.key) { card, amt in
                             VStack(spacing: 2) {
                                 Image(systemName: "creditcard.fill").font(.system(size: 9)).foregroundStyle(AppTheme.accent)
-                                Text(card).font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                                let cardTitle = (card == "Unknown" || card.isEmpty) ? "Direct" : (card.count == 4 && card.allSatisfy(\.isNumber) ? "••\(card)" : card)
+                                Text(cardTitle).font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.white)
                                 Text(SpendFormat.amount(amt)).font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
                             }
                             .padding(.horizontal, 8).padding(.vertical, 6)
