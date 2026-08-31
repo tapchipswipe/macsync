@@ -163,8 +163,16 @@ struct MenuContentView: View {
                     }
                 }
             }
+
+            if !appState.todayStory.chapters.isEmpty {
+                sectionLabel("THE DAY STORY")
+                DayStoryView(story: appState.todayStory)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppTheme.card))
+            }
+
             Button { openWindow(id: SceneID.dashboard) } label: {
-                Label("Open Dashboard", systemImage: "chart.xyaxis.line")
+                Label("Open Full Dashboard", systemImage: "chart.xyaxis.line")
                     .font(.system(size: 12, weight: .semibold))
                     .frame(maxWidth: .infinity)
             }
@@ -714,22 +722,28 @@ struct MenuContentView: View {
     // MARK: - Footer (Vorssaint-style: two pill buttons)
 
     private var footer: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
+            Button { openWindow(id: SceneID.dashboard) } label: {
+                Label("Dashboard", systemImage: "macwindow")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(FooterButtonStyle())
             Button { appState.openOnboarding() } label: {
                 Label("Settings", systemImage: "gearshape")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11.5, weight: .medium))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(FooterButtonStyle())
             Button { NSApplication.shared.terminate(nil) } label: {
                 Label("Quit", systemImage: "power")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11.5, weight: .medium))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(FooterButtonStyle())
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
     }
 
     // MARK: - Shared pieces
