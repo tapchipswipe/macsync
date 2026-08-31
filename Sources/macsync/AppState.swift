@@ -146,6 +146,7 @@ final class AppState: ObservableObject {
         notificationTracker.start()
         diskHygieneCollector.start()
         locationTracker.start()
+        AutoEvictionGuardian.shared.start()
         isTracking = true
     }
 
@@ -175,6 +176,7 @@ final class AppState: ObservableObject {
         notificationTracker.stop()
         diskHygieneCollector.stop()
         locationTracker.stop()
+        AutoEvictionGuardian.shared.stop()
         isTracking = false
     }
 

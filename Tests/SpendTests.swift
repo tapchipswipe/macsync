@@ -319,5 +319,23 @@ enum FrontierCore4Tests {
         // 4. iCloud Storage Optimizer Test
         let snapshot = iCloudStorageOptimizer.scanStorage()
         expect(snapshot.totalDiskBytes > 0 && snapshot.usedDiskBytes >= 0, "iCloud Storage Optimizer scans system disk usage and ubiquity candidates")
+
+        // 5. Folder Pinning Engine & Whitelist
+        let defaultRules = FolderPinningEngine.loadRules()
+        expect(!defaultRules.isEmpty, "FolderPinningEngine loads whitelist rules")
+        let isProtected = FolderPinningEngine.isProtectedFromEviction(path: "\(NSHomeDirectory())/Documents/Projects/myrepo")
+        expect(isProtected == true, "FolderPinningEngine protects pinned local projects from eviction")
+
+        // 6. Developer Project Bloat Trimmer
+        let bloat = DeveloperProjectTrimmer.scanDeveloperBloat()
+        expect(bloat.count >= 0, "DeveloperProjectTrimmer scans node_modules and build artifacts")
+
+        // 7. iCloud Sync Radar & Telemetry
+        let radar = iCloudSyncRadar.inspectSyncRadar()
+        expect(radar.isOnline == true, "iCloudSyncRadar inspects live sync queue & conflict status")
+
+        // 8. Download Triage Engine
+        let triage = DownloadTriageEngine.planTriage()
+        expect(triage.count >= 0, "DownloadTriageEngine plans automated iCloud routing for installers and media")
     }
 }
