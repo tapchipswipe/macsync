@@ -57,6 +57,7 @@ struct DashboardView: View {
                 hero(s)
                 meetingIndicator(todayEvents, stats: s)
                 metricGrid(s)
+                dayStorySection()
                 if !s.activity.isEmpty { activityChart(s) }
                 if !s.categories.isEmpty { categoriesCard(s) }
                 if let app = appHistory.selectedApp {
@@ -549,6 +550,14 @@ extension DashboardView {
             if !periodSpend.receipts.isEmpty { spendSection(periodSpend) }
             insightsCard(agg)
         }
+    }
+
+    private func dayStorySection() -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionTitle("THE DAY STORY", "Automated context narrative")
+            DayStoryView(story: appState.todayStory)
+        }
+        .cardStyle()
     }
 
     func spendSection(_ spend: SpendSummary) -> some View {

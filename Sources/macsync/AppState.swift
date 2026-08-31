@@ -30,6 +30,7 @@ final class AppState: ObservableObject {
 
     @Published var isTracking = false
     @Published var stats = TodayStats.empty
+    @Published var todayStory = DayStory.empty
     @Published var spendToday = SpendSummary.empty
     @Published var spendMonth = SpendSummary.empty
     @Published var selectedSpendMonthOffset: Int = 0 {
@@ -157,6 +158,7 @@ final class AppState: ObservableObject {
         let events = DataStore.shared.events(forDay: day)
         let archived = HistoryLoader.archivedEvents(daysBack: 7)
         stats = TodayAggregator.compute(events: events, archived: archived)
+        todayStory = DayStoryAggregator.buildStory(events: events)
         spendToday = SpendStats.calculate(events: SpendStats.eventsForToday())
         spendMonth = SpendStats.calculate(events: SpendStats.eventsForMonth(monthOffset: selectedSpendMonthOffset), monthOffset: selectedSpendMonthOffset)
 

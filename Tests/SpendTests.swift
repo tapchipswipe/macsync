@@ -404,3 +404,26 @@ enum SpendingPacingTests {
         }
     }
 }
+
+enum DayStoryTests {
+    static func run() {
+        let now = Date()
+        let r = ReceiptPayload(id: UUID(), merchant: "CAVA", amount: Decimal(string: "13.29")!,
+                               currency: "USD", cardLast4: "8031", category: .dining,
+                               transactionDate: now, capturedAt: now, source: "mail",
+                               mailMessageID: nil, confidence: 1.0, needsReview: false, notes: "Order #6191809579")
+        let w = WindowFocusPayload(appName: "Xcode", windowTitle: "macsync - SpendStats.swift", start: now.addingTimeInterval(-1800), end: now, durationSeconds: 1800)
+
+        let e1 = TrackerEvent(ts: now.addingTimeInterval(-1800), kind: .windowFocus, payload: .windowFocus(w))
+        let e2 = TrackerEvent(ts: now.addingTimeInterval(-600), kind: .windowFocus, payload: .windowFocus(w))
+        let e3 = TrackerEvent(ts: now, kind: .receipt, payload: .receipt(r))
+
+        let story = DayStoryAggregator.buildStory(events: [e1, e2, e3], forDate: now)
+
+        expect(story.chapters.count >= 2, "DayStory chapters count >= 2")
+        expect(story.totalDaySpend == Decimal(string: "13.29"), "DayStory total spend = $13.29")
+        let purchaseChapter = story.chapters.first(where: { $0.type == .purchase })
+        expect(purchaseChapter != nil, "Purchase chapter present")
+        expect(purchaseChapter?.cardNickname?.contains("Steve Credit") ?? false, "Purchase card binds to Steve Credit")
+    }
+}

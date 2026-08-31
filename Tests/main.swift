@@ -18,6 +18,7 @@ SpendExportTests.run()
 CardPortfolioTests.run()
 SubscriptionRadarTests.run()
 SpendingPacingTests.run()
+DayStoryTests.run()
 
 print("\(checks - failures)/\(checks) checks passed")
 exit(failures == 0 ? 0 : 1)
